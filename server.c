@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+
 void print_players(session_info *session)
 {
     if (session == NULL){
@@ -23,7 +24,7 @@ void print_players(session_info *session)
         inet_ntop(AF_INET, &session->players[i].player_addr.sin_addr,
                             player_ip, INET_ADDRSTRLEN);
         int player_port = ntohs(session->players[i].player_addr.sin_port);
-        printf("ID: %d IP: %s PORT: %d\n\n", i, player_ip, player_port);
+        printf("\nID: %d IP: %s PORT: %d\n", i, player_ip, player_port);
     }
     printf("---------------------\n");
     return;
@@ -47,6 +48,23 @@ int player_join(session_info *session, struct sockaddr_in *client_addr)
     return 0;
 }
 
+int wait_players(session_info *session, int server_sock, int *action,
+                struct sockaddr_in *client_addr, socklen_t *client_addr_len)
+{
+    while(1){
+        print_players(session);
+        *client_addr_len = sizeof(*client_addr);
+        int bytes_received = recvfrom(server_sock, action, sizeof(int), 0,
+                (struct sockaddr*) client_addr, client_addr_len);
+        if (bytes_received <= 0){
+            perror("receive error");
+            continue;
+        }
+        player_join(session, client_addr);
+        if (session->ready_players == PLAYERS_TO_START) return 0;
+    }
+    return 1;
+}
 int main()
 {
     session_info session = {
@@ -55,9 +73,6 @@ int main()
         .ready_players = 0,
         .session_time = 0
     };
-    for (int i = 0; i <= MAX_PLAYERS; i++){
-        session.players[i].ready = 0;
-    }
     int server_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock < 0){
         perror("Socket create ERR");
@@ -81,14 +96,7 @@ int main()
 
     int action;
     while(1){
-        print_players(&session);
-        int bytes_received = recvfrom(server_sock, &action, sizeof(int), 0,
-                (struct sockaddr*) &client_addr, &client_addr_len);
-        if (bytes_received <= 0){
-            perror("receive error");
-            continue;
-        }
-        player_join(&session, &client_addr);
+        wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
     }
     return 0;
 }
