@@ -6,6 +6,27 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+void print_players(session_info *session)
+{
+    if (session == NULL){
+        printf("NULL session\n");
+        return;
+    }
+    if (session->ready_players == 0){
+        printf("No one player\n");
+        return;
+    }
+    for (int i = 0; i < MAX_PLAYERS; i++){
+        char player_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &session->players[i].player_addr.sin_addr,
+                            player_ip, INET_ADDRSTRLEN);
+        int player_port = ntohs(session->players[i].player_addr.sin_port);
+        printf("ID: %d IP: %s PORT: %d\n", i, player_ip, player_port);
+    }
+    return;
+}
+
+
 int player_join(session_info *session, struct sockaddr_in *client_addr)
 {
     if (session == NULL || client_addr == NULL) return 1;
@@ -50,14 +71,14 @@ int main()
         perror("bind error");
         return 1;
     }
-    printf("Successfully bound");
+    printf("Successfully bound\n");
 
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
 
     int action;
     while(1){
-        printf("Players: %d\n",session.ready_players);
+        print_players(&session);
         int bytes_received = recvfrom(server_sock, &action, sizeof(int), 0,
                 (struct sockaddr*) &client_addr, &client_addr_len);
         if (bytes_received <= 0){
