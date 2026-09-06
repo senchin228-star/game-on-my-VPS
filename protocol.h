@@ -1,12 +1,7 @@
-#define MAX_PALYERS 2
+#define MAX_PLAYERS 2
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
-typedef struct {
-    uint32_t ip;
-    uint16_t port;
-    char action;
-} PlayerAction;
-
+#include <arpa/inet.h>
 typedef struct {
     struct sockaddr_in player_addr;
     int cord[2];

@@ -1,4 +1,5 @@
 #include "config.h"
+#include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,12 +27,12 @@ int main()
 {
     session_info session = {
         .session_number = 1,
-        .players = {0},
+        .players = {{{0}}},
         .ready_players = 0,
         .session_time = 0
     };
-    for (int i = 0, i <= MAX_PLAYERS, i++){
-        session.players + i = NULL;
+    for (int i = 0; i <= MAX_PLAYERS; i++){
+        session.players[i].ready = 0;
     }
     int server_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock < 0){
@@ -63,4 +64,9 @@ int main()
             perror("receive error");
             continue;
         }
+        player_join(&session, &client_addr);
+    }
+    return 0;
+}
+
 

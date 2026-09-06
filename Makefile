@@ -5,10 +5,10 @@ CFLAGS = -Wall -Wextra -g
 
 all: server client
 
-server: server.c config.h
+server: server.c config.h protocol.h
 	$(CC) $(CFLAGS) server.c -o server
 
-client: client.c client.h
+client: client.c config.h protocol.h
 	$(CC) $(CFLAGS) client.c -o client
 
 clean:

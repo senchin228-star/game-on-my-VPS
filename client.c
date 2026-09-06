@@ -26,9 +26,9 @@ int join_request(int sock, struct sockaddr_in server_addr)
     if (bytes_sent <= 0){
         perror("Failed to send the request");
         return 1;
-    }else{
-        return 0;
     }
+    return 0;
+}
 
 int main()
 {
@@ -46,4 +46,6 @@ int main()
         return 1;
     }
 
-    menu_start();
+    if (menu_start() == 0) join_request(sock, client_addr);
+    return 0;
+}
