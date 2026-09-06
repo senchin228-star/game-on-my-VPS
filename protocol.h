@@ -2,6 +2,12 @@
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
 typedef struct {
+    uint32_t ip;
+    uint16_t port;
+    char action;
+} PlayerAction;
+
+typedef struct {
     struct sockaddr_in player_addr;
     int cord[2];
     int ready;
@@ -10,8 +16,8 @@ typedef struct {
 typedef struct {
     int session_number;
     PlayerInfo players[MAX_PLAYERS];
-    int ReadyPlayers;
-    int SessionTime;
+    int ready_players;
+    int session_time;
 } session_info;
 
 typedef enum {

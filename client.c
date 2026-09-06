@@ -20,8 +20,8 @@ int menu_start()
 }
 int join_request(int sock, struct sockaddr_in server_addr)
 {
-    char request = (char)PLAYER_JOIN;
-    int bytes_sent = sendto(sock, &request, sizeof(char), 0,
+    int request = PLAYER_JOIN;
+    int bytes_sent = sendto(sock, &request, sizeof(int), 0,
             (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (bytes_sent <= 0){
         perror("Failed to send the request");
