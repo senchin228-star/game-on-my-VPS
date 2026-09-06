@@ -16,13 +16,16 @@ void print_players(session_info *session)
         printf("No one player\n");
         return;
     }
+    printf("-------Players-------\n");
     for (int i = 0; i < MAX_PLAYERS; i++){
+        if (!session->players[i].ready) continue;
         char player_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &session->players[i].player_addr.sin_addr,
                             player_ip, INET_ADDRSTRLEN);
         int player_port = ntohs(session->players[i].player_addr.sin_port);
-        printf("ID: %d IP: %s PORT: %d\n", i, player_ip, player_port);
+        printf("ID: %d IP: %s PORT: %d\n\n", i, player_ip, player_port);
     }
+    printf("---------------------\n");
     return;
 }
 
