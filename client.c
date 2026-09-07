@@ -18,7 +18,18 @@ int menu_start()
     printf("connecting..\n");
     return 0;
 }
-int join_request(int sock, struct sockaddr_in server_addr)
+int join_request(int sock, struct sockaddr_in server_addr, PLAYER_SIGNALS sig)
+{
+    int signal = sig;
+    int bytes_sent = sendto(sock, &signal, sizeof(int), 0,
+            (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (bytes_sent <= 0){
+        perror("Failed to send the signal");
+        return 1;
+    }
+    return 0;
+}
+int send_move(int sock, struct sockaddr_in server_addr)
 {
     int request = PLAYER_JOIN;
     int bytes_sent = sendto(sock, &request, sizeof(int), 0,
