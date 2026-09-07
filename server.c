@@ -6,6 +6,23 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+void print_player(session_info *session, int id)
+{
+    if (session == NULL){
+        printf("NULL session\n");
+        return;
+    }
+    if (session->players[id].ready == 0){
+        printf("Player not ready");
+        return;
+    }
+    char player_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &session->players[id].player_addr.sin_addr,
+                        player_ip, INET_ADDRSTRLEN);
+    int player_port = ntohs(session->players[id].player_addr.sin_port);
+    printf("ID: %d IP: %s PORT: %d\n", id, player_ip, player_port);
+    return;
+}
 
 void print_players(session_info *session)
 {
@@ -45,6 +62,8 @@ int player_join(session_info *session, struct sockaddr_in *client_addr)
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
     session->ready_players++;
+    printf("New player:\n");
+    print_player(session, index);
     return 0;
 }
 
@@ -52,7 +71,6 @@ int wait_players(session_info *session, int server_sock, int *action,
                 struct sockaddr_in *client_addr, socklen_t *client_addr_len)
 {
     while(1){
-        print_players(session);
         *client_addr_len = sizeof(*client_addr);
         int bytes_received = recvfrom(server_sock, action, sizeof(int), 0,
                 (struct sockaddr*) client_addr, client_addr_len);
