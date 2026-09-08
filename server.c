@@ -48,13 +48,21 @@ void print_players(session_info *session)
 }
 
 
-int player_join(session_info *session, struct sockaddr_in *client_addr)
+int player_join(session_info *session, int server_sock, struct sockaddr_in *client_addr)
 {
     if (session == NULL || client_addr == NULL) return 1;
     if (session->ready_players >= MAX_PLAYERS){
         printf("Max players\n");
         return 1;
-    } 
+    }
+    // ANSWER FOR CLIENT
+    PLAYER_SIGNALS acc = PLAYER_JOIN;
+    int bytes_sent = sendto(server_sock, &acc, sizeof(PLAYER_SIGNALS), 0,
+            (struct  sockaddr *) client_addr, sizeof(*client_addr));
+    if (bytes_sent <= 0){
+        perror("Failed to send the signal");
+        return 1;
+    }
     int index = 0;
     while (session->players[index].ready != 0){
         index++;
@@ -62,23 +70,25 @@ int player_join(session_info *session, struct sockaddr_in *client_addr)
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
     session->ready_players++;
+
     printf("New player:\n");
     print_player(session, index);
     return 0;
 }
 
-int wait_players(session_info *session, int server_sock, int *action,
+int wait_players(session_info *session, int server_sock, PLAYER_SIGNALS *action,
                 struct sockaddr_in *client_addr, socklen_t *client_addr_len)
 {
     while(1){
         *client_addr_len = sizeof(*client_addr);
-        int bytes_received = recvfrom(server_sock, action, sizeof(int), 0,
+        int bytes_received = recvfrom(server_sock, action, sizeof(PLAYER_SIGNALS), 0,
                 (struct sockaddr*) client_addr, client_addr_len);
         if (bytes_received <= 0){
             perror("receive error");
             continue;
         }
-        player_join(session, client_addr);
+        if (*action == PLAYER_JOIN_REQUEST) player_join(session, server_sock, client_addr);
+        else printf("NE TOT SIGNAL"); //otladka
         if (session->ready_players == PLAYERS_TO_START) return 0;
     }
     return 1;
@@ -112,7 +122,7 @@ int main()
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
 
-    int action;
+    PLAYER_SIGNALS action;
     while(1){
         wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
     }

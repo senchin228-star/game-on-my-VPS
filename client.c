@@ -18,6 +18,22 @@ int menu_start()
     printf("connecting..\n");
     return 0;
 }
+PLAYER_SIGNALS get_move()
+{
+    int key = fgetc(stdin);
+    switch (key){
+        case 'w':
+            return UP_KEY;
+        case 's':
+            return DOWN_KEY;
+        case 'd':
+            return RIGHT_KEY;
+        case 'a':
+            return LEFT_KEY;
+        default:
+            return NO_KEY;
+    }
+}
 int send_move(int sock, struct sockaddr_in server_addr, PLAYER_SIGNALS sig)
 {
     int signal = sig;
@@ -31,7 +47,7 @@ int send_move(int sock, struct sockaddr_in server_addr, PLAYER_SIGNALS sig)
 }
 int join_request(int sock, struct sockaddr_in server_addr)
 {
-    int request = PLAYER_JOIN;
+    PLAYER_SIGNALS request = PLAYER_JOIN_REQUEST;
     int bytes_sent = sendto(sock, &request, sizeof(int), 0,
             (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (bytes_sent <= 0){
@@ -57,6 +73,8 @@ int main()
         return 1;
     }
 
-    if (menu_start() == 0) join_request(sock, client_addr);
+    if (menu_start() != 0) return 1;
+    if (join_request(sock, client_addr) != 0) return 1;;
+
     return 0;
 }

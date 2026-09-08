@@ -17,6 +17,7 @@ typedef struct {
 
 typedef enum {
     PLAYER_JOIN,
+    PLAYER_JOIN_REQUEST,
     NO_KEY,
     UP_KEY,
     DOWN_KEY,
