@@ -57,6 +57,17 @@ int join_request(int sock, struct sockaddr_in server_addr)
     return 0;
 }
 
+PLAYER_SIGNALS get_server_sig(int sock)
+{
+    PLAYER_SIGNALS sig;
+    int bytes_received = recvfrom(sock, &sig, sizeof(PLAYER_SIGNALS), 0, NULL, NULL);
+    if (bytes_received <= 0){
+        perror("Get server signal error");
+        return NO_KEY;
+    }
+    return sig;
+}
+
 int main()
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -75,6 +86,11 @@ int main()
 
     if (menu_start() != 0) return 1;
     if (join_request(sock, client_addr) != 0) return 1;;
+    PLAYER_SIGNALS sig = get_server_sig(sock);
+    if (sig == PLAYER_JOIN)
+    {
+        printf("Connect!\n");
+    }else printf("Full lobby");
 
     return 0;
 }
