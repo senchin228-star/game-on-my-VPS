@@ -16,7 +16,8 @@ typedef struct {
 } session_info;
 
 typedef enum {
-    PLAYER_JOIN,
+    PLAYER_JOIN_ACCEPT,
+    PLAYER_JOIN_DENIED,
     PLAYER_JOIN_REQUEST,
     NO_KEY,
     UP_KEY,

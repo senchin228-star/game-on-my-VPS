@@ -8,9 +8,9 @@
 
 int menu_start()
 {
-    printf("To start, enter Y.");
     int key;
     while(1){
+        printf("To start, enter Y.");
         key = fgetc(stdin);
         if (key == 'Y') break;
         continue;
@@ -84,10 +84,10 @@ int main()
         return 1;
     }
 
-    if (menu_start() != 0) return 1;
+    menu_start();
     if (join_request(sock, client_addr) != 0) return 1;;
     PLAYER_SIGNALS sig = get_server_sig(sock);
-    if (sig == PLAYER_JOIN)
+    if (sig == PLAYER_JOIN_ACCEPT)
     {
         printf("Connect!\n");
     }else printf("Full lobby");

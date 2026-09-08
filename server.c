@@ -51,18 +51,20 @@ void print_players(session_info *session)
 int player_join(session_info *session, int server_sock, struct sockaddr_in *client_addr)
 {
     if (session == NULL || client_addr == NULL) return 1;
-    if (session->ready_players >= MAX_PLAYERS){
-        printf("Max players\n");
-        return 1;
-    }
+    PLAYER_SIGNALS acc = PLAYER_JOIN_ACCEPT;
+    if (session->ready_players >= MAX_PLAYERS) acc = PLAYER_JOIN_DENIED;
     // ANSWER FOR CLIENT
-    PLAYER_SIGNALS acc = PLAYER_JOIN;
     int bytes_sent = sendto(server_sock, &acc, sizeof(PLAYER_SIGNALS), 0,
             (struct  sockaddr *) client_addr, sizeof(*client_addr));
     if (bytes_sent <= 0){
         perror("Failed to send the signal");
         return 1;
     }
+    if (session->ready_players >= MAX_PLAYERS){
+        printf("Max players\n");
+        return 1;
+    }
+    
     int index = 0;
     while (session->players[index].ready != 0){
         index++;
