@@ -5,6 +5,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+void print_player_pos(session_info  *session, int id)
+{
+    if (session == NULL){
+        printf("NULL session\n");
+        return;
+    }
+    int x, y;
+    x = session->players[id].cord[0];
+    y = session->players[id].cord[1];
+    printf("ID: %d X: %d, Y: %d\n", id, x, y);
+}
 
 void print_player(session_info *session, int id)
 {
@@ -52,7 +63,10 @@ int player_join(session_info *session, int server_sock, struct sockaddr_in *clie
 {
     if (session == NULL || client_addr == NULL) return 1;
     PLAYER_SIGNALS acc = PLAYER_JOIN_ACCEPT;
-    if (session->ready_players >= MAX_PLAYERS) acc = PLAYER_JOIN_DENIED;
+    if (session->ready_players >= MAX_PLAYERS){
+        acc = PLAYER_JOIN_DENIED;
+        printf("Max players\n");
+    }
     // ANSWER FOR CLIENT
     int bytes_sent = sendto(server_sock, &acc, sizeof(PLAYER_SIGNALS), 0,
             (struct  sockaddr *) client_addr, sizeof(*client_addr));
@@ -60,11 +74,8 @@ int player_join(session_info *session, int server_sock, struct sockaddr_in *clie
         perror("Failed to send the signal");
         return 1;
     }
-    if (session->ready_players >= MAX_PLAYERS){
-        printf("Max players\n");
-        return 1;
-    }
-    
+    if (session->ready_players >= MAX_PLAYERS) return 1;
+
     int index = 0;
     while (session->players[index].ready != 0){
         index++;
@@ -82,6 +93,7 @@ int wait_players(session_info *session, int server_sock, PLAYER_SIGNALS *action,
                 struct sockaddr_in *client_addr, socklen_t *client_addr_len)
 {
     while(1){
+        if (session->ready_players == PLAYERS_TO_START) return 0;
         *client_addr_len = sizeof(*client_addr);
         int bytes_received = recvfrom(server_sock, action, sizeof(PLAYER_SIGNALS), 0,
                 (struct sockaddr*) client_addr, client_addr_len);
@@ -91,10 +103,50 @@ int wait_players(session_info *session, int server_sock, PLAYER_SIGNALS *action,
         }
         if (*action == PLAYER_JOIN_REQUEST) player_join(session, server_sock, client_addr);
         else printf("NE TOT SIGNAL"); //otladka
-        if (session->ready_players == PLAYERS_TO_START) return 0;
     }
     return 1;
 }
+
+int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
+{
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int bytes_received = recvfrom(sock, action, sizeof(PLAYER_SIGNALS), 0,
+                (struct sockaddr*) &client_addr, &client_addr_len);
+    if (bytes_received <= 0){
+        perror("receive error");
+        return 1;
+    }
+    int id = 0;
+    char find = 0;
+    for (; id < MAX_PLAYERS; id++){
+        if (session->players[id].player_addr.sin_addr.s_addr == client_addr.sin_addr.s_addr &&
+                session->players[id].player_addr.sin_port == client_addr.sin_port) {
+            find = 1;
+            break;
+        }
+    }
+    if (!find) return 1; // UNKNOWN PLAYER
+    switch(*action){
+        case LEFT_KEY:
+            session->players[id].cord[0]--; // x = [0] ; y =[1]
+            break;
+        case RIGHT_KEY:
+            session->players[id].cord[0]++;
+            break;
+        case DOWN_KEY:
+            session->players[id].cord[1]--;
+            break;
+        case UP_KEY:
+            session->players[id].cord[1]++;
+            break;
+        default:
+            break;
+    }
+    print_player_pos(session, id);
+    return 0;
+}
+
 int main()
 {
     session_info session = {
@@ -125,8 +177,10 @@ int main()
     socklen_t client_addr_len = sizeof(client_addr);
 
     PLAYER_SIGNALS action;
+    wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
+    printf("GAME START\n");
     while(1){
-        wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
+        move_handle(&session, server_sock, &action);
     }
     return 0;
 }

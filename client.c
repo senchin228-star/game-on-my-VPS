@@ -22,6 +22,8 @@ int menu_start()
 PLAYER_SIGNALS get_move()
 {
     int key = fgetc(stdin);
+    int c;
+    while ((c = fgetc(stdin)) != '\n' && c != EOF){}
     switch (key){
         case 'w':
             return UP_KEY;
@@ -95,6 +97,10 @@ int main()
             break;
         }else printf("Full lobby\n");
     }
+
+    while(1){
+        if (send_move(sock, client_addr, get_move()) == 0) printf("send\n");
+    } 
 
     return 0;
 }
