@@ -2,6 +2,17 @@
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
 #include <arpa/inet.h>
+typedef enum {
+    PLAYER_JOIN_ACCEPT,
+    PLAYER_JOIN_DENIED,
+    PLAYER_JOIN_REQUEST,
+    NO_KEY,
+    UP_KEY,
+    DOWN_KEY,
+    LEFT_KEY,
+    RIGHT_KEY
+} PLAYER_SIGNALS;
+
 typedef struct {
     int id;
     int x;
@@ -27,14 +38,4 @@ typedef struct {
 } session_info;
 
 
-typedef enum {
-    PLAYER_JOIN_ACCEPT,
-    PLAYER_JOIN_DENIED,
-    PLAYER_JOIN_REQUEST,
-    NO_KEY,
-    UP_KEY,
-    DOWN_KEY,
-    LEFT_KEY,
-    RIGHT_KEY
-} PLAYER_SIGNALS;
 

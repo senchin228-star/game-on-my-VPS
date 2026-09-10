@@ -60,15 +60,15 @@ int join_request(int sock, struct sockaddr_in server_addr)
     return 0;
 }
 
-PLAYER_SIGNALS get_server_sig(int sock)
+int get_server_sig(int sock)
 {
-    PLAYER_SIGNALS sig;
-    int bytes_received = recvfrom(sock, &sig, sizeof(PLAYER_SIGNALS), 0, NULL, NULL);
+    join_response resp;
+    int bytes_received = recvfrom(sock, &resp, sizeof(join_response), 0, NULL, NULL);
     if (bytes_received <= 0){
         perror("Get server signal error\n");
-        return NO_KEY;
+        return -1;
     }
-    return sig;
+    return resp.id;
 }
 
 int main()
@@ -90,8 +90,8 @@ int main()
     while(1){
         menu_start();
         if (join_request(sock, client_addr) != 0) return 1;
-        PLAYER_SIGNALS sig = get_server_sig(sock);
-        if (sig == PLAYER_JOIN_ACCEPT)
+        int id = get_server_sig(sock);
+        if (id >= 0)
         {
             printf("Connect!\n");
             break;
