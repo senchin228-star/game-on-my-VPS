@@ -12,8 +12,8 @@ void print_player_pos(session_info  *session, int id)
         return;
     }
     int x, y;
-    x = session->players[id].cord[0];
-    y = session->players[id].cord[1];
+    x = session->cord[id].x;
+    y = session->cord[id].y;
     printf("ID: %d X: %d, Y: %d\n", id, x, y);
 }
 
@@ -83,6 +83,7 @@ int player_join(session_info *session, int server_sock, struct sockaddr_in *clie
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
     session->ready_players++;
+    session->cord[index].id = index;
 
     printf("New player:\n");
     print_player(session, index);
@@ -129,21 +130,29 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
     if (!find) return 1; // UNKNOWN PLAYER
     switch(*action){
         case LEFT_KEY:
-            session->players[id].cord[0]--; // x = [0] ; y =[1]
+            session->cord[id].x--; // x = [0] ; y =[1]
             break;
         case RIGHT_KEY:
-            session->players[id].cord[0]++;
+            session->cord[id].x++; // x = [0] ; y =[1]
             break;
         case DOWN_KEY:
-            session->players[id].cord[1]--;
+            session->cord[id].y--;
             break;
         case UP_KEY:
-            session->players[id].cord[1]++;
+            session->cord[id].y++;
             break;
         default:
             break;
     }
     print_player_pos(session, id);
+    id = 0;
+    for (;id < MAX_PLAYERS; id++){
+        player_info *player = &session->players[id];
+        if (!player->ready) continue;
+        int bytes_sent = sendto(sock, session->cord, sizeof(session->cord),
+                            0,(struct  sockaddr *) &player->player_addr, sizeof(player->player_addr));
+        if (bytes_sent <= 0) perror("Failed to send cord\n");
+    }
     return 0;
 }
 
@@ -155,6 +164,7 @@ int main()
         .ready_players = 0,
         .session_time = 0
     };
+
     int server_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock < 0){
         perror("Socket create ERR");
@@ -184,5 +194,4 @@ int main()
     }
     return 0;
 }
-
 

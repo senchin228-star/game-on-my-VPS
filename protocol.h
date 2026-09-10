@@ -3,17 +3,24 @@
 #define TIME_FOR_EXIT 60
 #include <arpa/inet.h>
 typedef struct {
+    int id;
+    int x;
+    int y;
+} player_cord;
+
+typedef struct {
     struct sockaddr_in player_addr;
-    int cord[2];
     int ready;
-} PlayerInfo;
+} player_info;
 
 typedef struct {
     int session_number;
-    PlayerInfo players[MAX_PLAYERS];
+    player_info players[MAX_PLAYERS];
+    player_cord cord[MAX_PLAYERS];
     int ready_players;
     int session_time;
 } session_info;
+
 
 typedef enum {
     PLAYER_JOIN_ACCEPT,
