@@ -9,6 +9,11 @@ typedef struct {
 } player_cord;
 
 typedef struct {
+    PLAYER_SIGNALS status;
+    int id;
+} join_response;
+
+typedef struct {
     struct sockaddr_in player_addr;
     int ready;
 } player_info;
