@@ -5,6 +5,19 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <termios.h>
+
+void set_raw_mode(int enable) {
+    static struct termios oldt, newt;
+    if (enable) {
+        tcgetattr(STDIN_FILENO, &oldt);
+        newt = oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    } else {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    }
+}
 
 int menu_start()
 {
@@ -22,8 +35,6 @@ int menu_start()
 PLAYER_SIGNALS get_move()
 {
     int key = fgetc(stdin);
-    int c;
-    while ((c = fgetc(stdin)) != '\n' && c != EOF){}
     switch (key){
         case 'w':
             return UP_KEY;
@@ -37,11 +48,11 @@ PLAYER_SIGNALS get_move()
             return NO_KEY;
     }
 }
-int send_move(int sock, struct sockaddr_in server_addr, PLAYER_SIGNALS sig)
+int send_move(int sock, struct sockaddr_in *server_addr, PLAYER_SIGNALS sig)
 {
     int signal = sig;
     int bytes_sent = sendto(sock, &signal, sizeof(int), 0,
-            (struct sockaddr *)&server_addr, sizeof(server_addr));
+            (struct sockaddr *)server_addr, sizeof(*server_addr));
     if (bytes_sent <= 0){
         perror("Failed to send the signal\n");
         return 1;
@@ -60,7 +71,7 @@ int join_request(int sock, struct sockaddr_in server_addr)
     return 0;
 }
 
-int get_server_sig(int sock)
+int get_server_resp(int sock)
 {
     join_response resp;
     int bytes_received = recvfrom(sock, &resp, sizeof(join_response), 0, NULL, NULL);
@@ -90,17 +101,32 @@ int main()
     while(1){
         menu_start();
         if (join_request(sock, client_addr) != 0) return 1;
-        int id = get_server_sig(sock);
+        int id = get_server_resp(sock);
         if (id >= 0)
         {
             printf("Connect!\n");
             break;
         }else printf("Full lobby\n");
     }
-
-    while(1){
-        if (send_move(sock, client_addr, get_move()) == 0) printf("send\n");
-    } 
-
+    fd_set readfd;
+    int retval;
+    int nfds = STDIN_FILENO + 1;
+    set_raw_mode(1);
+    while(1)
+    {
+        FD_ZERO(&readfd);
+        FD_SET(STDIN_FILENO, &readfd);
+        FD_SET(sock, &readfd);
+        retval = select(nfds, &readfd ,NULL, NULL, NULL);
+        if (retval == -1) perror("Select() error");
+        else if (FD_ISSET(STDIN_FILENO, &readfd)){
+           PLAYER_SIGNALS move = get_move();
+           send_move(sock, &client_addr, move);
+        }
+        if (FD_ISSET(sock, &readfd)){
+            printf("Get new pos");
+        }
+    }
+    set_raw_mode(0);
     return 0;
 }
