@@ -90,17 +90,17 @@ int main()
         return 1;
     }
     
-    struct sockaddr_in client_addr;
-    client_addr.sin_family = AF_INET;
-    client_addr.sin_port = htons(SERVER_PORT);
-    if (inet_pton(AF_INET, SERVER_IP, &client_addr.sin_addr) <= 0){
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(SERVER_PORT);
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0){
         perror("Wrong IP addres\n");
         return 1;
     }
 
     while(1){
         menu_start();
-        if (join_request(sock, client_addr) != 0) return 1;
+        if (join_request(sock, server_addr) != 0) return 1;
         int id = get_server_resp(sock);
         if (id >= 0)
         {
@@ -123,7 +123,7 @@ int main()
         if (retval == -1) perror("Select() error");
         else if (FD_ISSET(STDIN_FILENO, &readfd)){
            PLAYER_SIGNALS move = get_move();
-           send_move(sock, &client_addr, move);
+           send_move(sock, &server_addr, move);
         }
         if (FD_ISSET(sock, &readfd)){
             printf("Get new pos\n");
