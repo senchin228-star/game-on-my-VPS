@@ -108,9 +108,11 @@ int main()
             break;
         }else printf("Full lobby\n");
     }
+    player_cord all_cord[MAX_PLAYERS];
+
     fd_set readfd;
     int retval;
-    int nfds = STDIN_FILENO + 1;
+    int nfds = sock + 1;
     set_raw_mode(1);
     while(1)
     {
@@ -124,7 +126,9 @@ int main()
            send_move(sock, &client_addr, move);
         }
         if (FD_ISSET(sock, &readfd)){
-            printf("Get new pos");
+            printf("Get new pos\n");
+            int bytes_received = recvfrom(sock, &all_cord, sizeof(all_cord), 0, NULL, NULL);
+            if (bytes_received <= 0) perror("Failed get cord\n");
         }
     }
     set_raw_mode(0);
