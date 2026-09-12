@@ -1,3 +1,6 @@
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
+
 #define MAX_PLAYERS 2
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
@@ -36,6 +39,7 @@ typedef struct {
     int ready_players;
     int session_time;
 } session_info;
+#endif
 
 
 
