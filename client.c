@@ -132,7 +132,11 @@ int main()
             if (bytes_received <= 0) perror("Failed get server message\n");
             if (serv_mes.type == MSG_POSITIONS)
                 memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
-            else (printf("Get another server message type"));
+            else if (serv_mes.type == MSG_GAME_OVER){
+                printf("Game over\n");
+                break;
+            }
+            else (printf("Get another server message type\n"));
         }
         
     }

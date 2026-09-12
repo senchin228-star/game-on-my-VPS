@@ -118,6 +118,22 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
     return 0;
 }
 
+void session_end(session_info *session, int sock)
+{
+    for (int id = 0 ;id < MAX_PLAYERS; id++){
+        player_info *player = &session->players[id];
+        if (!player->ready) continue;
+        server_message mes = {
+            .type = MSG_GAME_OVER,
+            .left_time = session->session_time
+        };
+        int bytes_sent = sendto(sock, &mes, sizeof(mes),
+                            0,(struct  sockaddr *) &player->player_addr, sizeof(player->player_addr));
+        if (bytes_sent <= 0) perror("Failed to send mes\n");
+    }
+}
+
+
 int main()
 {
     session_info session = {
@@ -176,9 +192,10 @@ int main()
             move_handle(&session, server_sock, &action);
         }
         session.session_time = elapsed;
-
     }
     printf("game ended\n");
+    session_end(&session, server_sock);
+
     close(server_sock);
     return 0;
 }
