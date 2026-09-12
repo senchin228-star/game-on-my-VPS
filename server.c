@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 int player_join(session_info *session, int server_sock, struct sockaddr_in *client_addr)
 {
@@ -89,7 +90,7 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
             session->cord[id].x--; // x = [0] ; y =[1]
             break;
         case RIGHT_KEY:
-            session->cord[id].x++; // x = [0] ; y =[1]
+            session->cord[id].x++;
             break;
         case DOWN_KEY:
             session->cord[id].y--;
@@ -105,7 +106,12 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
     for (;id < MAX_PLAYERS; id++){
         player_info *player = &session->players[id];
         if (!player->ready) continue;
-        int bytes_sent = sendto(sock, session->cord, sizeof(session->cord),
+        server_message mes = {
+            .type = MSG_POSITIONS,
+            .left_time = session->session_time
+        };
+        memcpy(mes.positions, session->cord, sizeof(mes.positions));
+        int bytes_sent = sendto(sock, &mes, sizeof(mes),
                             0,(struct  sockaddr *) &player->player_addr, sizeof(player->player_addr));
         if (bytes_sent <= 0) perror("Failed to send cord\n");
     }
@@ -145,9 +151,35 @@ int main()
     PLAYER_SIGNALS action;
     wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
     printf("GAME START\n");
+
+    fd_set readfd;
+    int retval;
+    int nfds = server_sock + 1;
+    time_t start_time = time(NULL);
+    struct timeval tv;
     while(1){
-        move_handle(&session, server_sock, &action);
+        time_t now = time(NULL);
+        int elapsed = (int)(now - start_time);
+
+        printf("Time: %d sec\n", elapsed);
+        if (session.session_time == TIME_FOR_EXIT) break;
+
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+        FD_ZERO(&readfd);
+        FD_SET(server_sock, &readfd);
+        FD_SET(STDIN_FILENO, &readfd); //for admin
+
+        retval = select(nfds, &readfd, NULL, NULL, &tv);
+        if (retval < 0) perror("select() error\n");
+        if (FD_ISSET(server_sock, &readfd)){
+            move_handle(&session, server_sock, &action);
+        }
+        session.session_time = elapsed;
+
     }
+    printf("game ended\n");
+    close(server_sock);
     return 0;
 }
 

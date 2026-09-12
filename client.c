@@ -108,6 +108,7 @@ int main()
             break;
         }else printf("Full lobby\n");
     }
+    server_message serv_mes;
     player_cord all_cord[MAX_PLAYERS];
 
     fd_set readfd;
@@ -127,10 +128,15 @@ int main()
         }
         if (FD_ISSET(sock, &readfd)){
             printf("Get new pos\n");
-            int bytes_received = recvfrom(sock, &all_cord, sizeof(all_cord), 0, NULL, NULL);
-            if (bytes_received <= 0) perror("Failed get cord\n");
+            int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
+            if (bytes_received <= 0) perror("Failed get server message\n");
+            if (serv_mes.type == MSG_POSITIONS)
+                memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
+            else (printf("Get another server message type"));
         }
+        
     }
     set_raw_mode(0);
+    close(sock);
     return 0;
 }

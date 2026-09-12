@@ -16,11 +16,24 @@ typedef enum {
     RIGHT_KEY
 } PLAYER_SIGNALS;
 
+typedef enum {
+    MSG_POSITIONS,
+    MSG_GAME_OVER,
+} MESSAGE_TYPE;
+
 typedef struct {
     int id;
     int x;
     int y;
 } player_cord;
+
+
+typedef struct {
+    MESSAGE_TYPE type;
+    player_cord positions[MAX_PLAYERS];   // valid if type == MSG_POSITIONS
+    int left_time;
+} server_message;
+
 
 typedef struct {
     PLAYER_SIGNALS status;
