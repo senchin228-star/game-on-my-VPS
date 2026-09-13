@@ -60,7 +60,6 @@ int wait_players(session_info *session, int server_sock, PLAYER_SIGNALS *action,
             continue;
         }
         if (*action == PLAYER_JOIN_REQUEST) player_join(session, server_sock, client_addr);
-        else printf("NE TOT SIGNAL"); //otladka
     }
     return 1;
 }
@@ -120,6 +119,11 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
 
 void session_end(session_info *session, int sock)
 {
+    session->session_number++;
+    memset(session->cord, 0, sizeof(session->cord));
+    memset(session->players, 0, sizeof(session->players));
+    session->ready_players = 0;
+    session->session_time = 0;
     for (int id = 0 ;id < MAX_PLAYERS; id++){
         player_info *player = &session->players[id];
         if (!player->ready) continue;
@@ -138,7 +142,8 @@ int main()
 {
     session_info session = {
         .session_number = 1,
-        .players = {{{0}}},
+        .players = {0},
+        .cord = {0},
         .ready_players = 0,
         .session_time = 0
     };
@@ -163,39 +168,40 @@ int main()
 
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
-
-    PLAYER_SIGNALS action;
-    wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
-    printf("GAME START\n");
-
-    fd_set readfd;
-    int retval;
-    int nfds = server_sock + 1;
-    time_t start_time = time(NULL);
-    struct timeval tv;
     while(1){
-        time_t now = time(NULL);
-        int elapsed = (int)(now - start_time);
+        PLAYER_SIGNALS action;
+        wait_players(&session, server_sock, &action, &client_addr, &client_addr_len);
+        printf("GAME START\n");
 
-        printf("Time: %d sec\n", elapsed);
-        if (session.session_time == TIME_FOR_EXIT) break;
+        fd_set readfd;
+        int retval;
+        int nfds = server_sock + 1;
+        time_t start_time = time(NULL);
+        struct timeval tv;
+        while(1){
+            time_t now = time(NULL);
+            int elapsed = (int)(now - start_time);
 
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        FD_ZERO(&readfd);
-        FD_SET(server_sock, &readfd);
-        FD_SET(STDIN_FILENO, &readfd); //for admin
+            printf("Time: %d sec\n", elapsed);
+            if (session.session_time == TIME_FOR_EXIT) break;
 
-        retval = select(nfds, &readfd, NULL, NULL, &tv);
-        if (retval < 0) perror("select() error\n");
-        if (FD_ISSET(server_sock, &readfd)){
-            move_handle(&session, server_sock, &action);
+            tv.tv_sec = 1;
+            tv.tv_usec = 0;
+            FD_ZERO(&readfd);
+            FD_SET(server_sock, &readfd);
+            FD_SET(STDIN_FILENO, &readfd); //for admin
+
+            retval = select(nfds, &readfd, NULL, NULL, &tv);
+            if (retval < 0) perror("select() error\n");
+            if (FD_ISSET(server_sock, &readfd)){
+                move_handle(&session, server_sock, &action);
+            }
+            session.session_time = elapsed;
         }
-        session.session_time = elapsed;
+        printf("game ended\n");
+        session_end(&session, server_sock);
+        printf("Session number: %d\nWait new player...\n",session.session_number); 
     }
-    printf("game ended\n");
-    session_end(&session, server_sock);
-
     close(server_sock);
     return 0;
 }
