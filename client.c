@@ -99,48 +99,57 @@ int main()
     }
 
     while(1){
-        menu_start();
-        if (join_request(sock, server_addr) != 0) return 1;
-        int id = get_server_resp(sock);
-        if (id >= 0)
-        {
-            printf("Connect!\n");
-            break;
-        }else printf("Full lobby\n");
-    }
-    server_message serv_mes;
-    player_cord all_cord[MAX_PLAYERS];
-
-    fd_set readfd;
-    int retval;
-    int nfds = sock + 1;
-    set_raw_mode(1);
-    while(1)
-    {
-        FD_ZERO(&readfd);
-        FD_SET(STDIN_FILENO, &readfd);
-        FD_SET(sock, &readfd);
-        retval = select(nfds, &readfd ,NULL, NULL, NULL);
-        if (retval == -1) perror("Select() error");
-        else if (FD_ISSET(STDIN_FILENO, &readfd)){
-           PLAYER_SIGNALS move = get_move();
-           send_move(sock, &server_addr, move);
-        }
-        if (FD_ISSET(sock, &readfd)){
-            printf("Get new pos\n");
-            int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
-            if (bytes_received <= 0) perror("Failed get server message\n");
-            if (serv_mes.type == MSG_POSITIONS)
-                memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
-            else if (serv_mes.type == MSG_GAME_OVER){
-                printf("Game over\n");
+        while(1){
+            menu_start();
+            if (join_request(sock, server_addr) != 0) return 1;
+            int id = get_server_resp(sock);
+            if (id >= 0)
+            {
+                printf("Connect!\n");
                 break;
-            }
-            else (printf("Get another server message type\n"));
+            }else printf("Full lobby\n");
         }
-        
+        server_message serv_mes;
+        player_cord all_cord[MAX_PLAYERS];
+
+        fd_set readfd;
+        int retval;
+        int nfds = sock + 1;
+        set_raw_mode(1);
+        while(1)
+        {
+            FD_ZERO(&readfd);
+            FD_SET(STDIN_FILENO, &readfd);
+            FD_SET(sock, &readfd);
+            retval = select(nfds, &readfd ,NULL, NULL, NULL);
+            if (retval == -1) perror("Select() error");
+            else if (FD_ISSET(STDIN_FILENO, &readfd)){
+               PLAYER_SIGNALS move = get_move();
+               send_move(sock, &server_addr, move);
+            }
+            if (FD_ISSET(sock, &readfd)){
+                printf("Get new pos\n");
+                int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
+                if (bytes_received <= 0) perror("Failed get server message\n");
+                if (serv_mes.type == MSG_POSITIONS)
+                    memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
+                else if (serv_mes.type == MSG_GAME_OVER){
+                    printf("Game over\n");
+                    break;
+                }
+                else (printf("Get another server message type\n"));
+            }
+            
+        }
+        set_raw_mode(0);
+        printf("Press Y to play again or any other key to exit\n");
+        int choice = fgetc(stdin);
+        int c;
+        while ((c = fgetc(stdin)) != '\n' && c != EOF){}
+        if (choice != 'Y' && choice != 'y') {
+            break;
+        }
     }
-    set_raw_mode(0);
     close(sock);
     return 0;
 }
