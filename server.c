@@ -120,10 +120,6 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
 void session_end(session_info *session, int sock)
 {
     session->session_number++;
-    memset(session->cord, 0, sizeof(session->cord));
-    memset(session->players, 0, sizeof(session->players));
-    session->ready_players = 0;
-    session->session_time = 0;
     for (int id = 0 ;id < MAX_PLAYERS; id++){
         player_info *player = &session->players[id];
         if (!player->ready) continue;
@@ -135,6 +131,10 @@ void session_end(session_info *session, int sock)
                             0,(struct  sockaddr *) &player->player_addr, sizeof(player->player_addr));
         if (bytes_sent <= 0) perror("Failed to send mes\n");
     }
+    memset(session->cord, 0, sizeof(session->cord));
+    memset(session->players, 0, sizeof(session->players));
+    session->ready_players = 0;
+    session->session_time = 0;
 }
 
 
