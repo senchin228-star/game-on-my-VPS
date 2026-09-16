@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <termios.h>
+#include <ctype.h>
 
 void set_raw_mode(int enable) {
     static struct termios oldt, newt;
@@ -27,7 +28,7 @@ int menu_start()
         key = fgetc(stdin);
         int c;
         while ((c = fgetc(stdin)) != '\n' && c != EOF){}
-        if (key == 'Y') break;
+        if (tolower((unsigned char)key) == 'y') break;
     }
     printf("connecting..\n");
     return 0;
@@ -146,9 +147,7 @@ int main()
         int choice = fgetc(stdin);
         int c;
         while ((c = fgetc(stdin)) != '\n' && c != EOF){}
-        if (choice != 'Y' && choice != 'y') {
-            break;
-        }
+        if (tolower((unsigned char)choice) == 'y') break;
     }
     close(sock);
     return 0;
