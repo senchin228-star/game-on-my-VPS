@@ -92,10 +92,10 @@ int move_handle(session_info *session, int sock, PLAYER_SIGNALS *action)
             session->cord[id].x++;
             break;
         case DOWN_KEY:
-            session->cord[id].y--;
+            session->cord[id].y++;
             break;
         case UP_KEY:
-            session->cord[id].y++;
+            session->cord[id].y--;
             break;
         default:
             break;

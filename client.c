@@ -142,6 +142,7 @@ int main()
             SDL_RenderClear(renderer);
             render_players(players_rects, MAX_PLAYERS, renderer);
             SDL_RenderPresent(renderer);
+            if (players_rects != NULL ) free(players_rects);
 
             const Uint8 *state = SDL_GetKeyboardState(NULL);
             if (state[SDL_SCANCODE_LEFT])  { send_move(sock, &server_addr, LEFT_KEY); }
@@ -150,7 +151,6 @@ int main()
             if (state[SDL_SCANCODE_DOWN])  { send_move(sock, &server_addr, DOWN_KEY); }
         }
     }
-    if (players_rects != NULL ) free(players_rects);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
