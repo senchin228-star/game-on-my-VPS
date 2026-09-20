@@ -1,5 +1,7 @@
 #include "config.h"
 #include "protocol.h"
+#include "sdl_utils.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,15 +80,18 @@ int main()
 
     SDL_Event event;
     int running = 1;
+    SDL_Rect *players_rects;
 
     while(running){
         int menu = 1;
+        int ingame = 0;
         SDL_Rect join_button = { .x = 300, .y = 250, .w = 200, .h = 50 };
         while(menu){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
                     running = 0;
                     menu = 0;
+                    break;
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN){
                     if (event.button.button == SDL_BUTTON_LEFT){
@@ -98,7 +103,7 @@ int main()
                 }
             }
             join_response resp;
-            int bytes_received = recvfrom(sock, &resp, sizeof(join_response), 0, NULL, NULL);
+            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
             if (bytes_received > 0 && resp.id != -1){
                 menu = 0;
             }
@@ -108,45 +113,44 @@ int main()
             SDL_RenderFillRect(renderer, &join_button);
             SDL_RenderPresent(renderer);
         }
-        running = 0;
-/*
+        ingame = 1;
+
         server_message serv_mes;
         player_cord all_cord[MAX_PLAYERS];
-        fd_set readfd;
-        int retval;
-        int nfds = sock + 1;
-        while(1)
-        {
-            FD_ZERO(&readfd);
-            FD_SET(STDIN_FILENO, &readfd);
-            FD_SET(sock, &readfd);
-            retval = select(nfds, &readfd ,NULL, NULL, NULL);
-            if (retval == -1) perror("Select() error");
-            else if (FD_ISSET(STDIN_FILENO, &readfd)){
-               PLAYER_SIGNALS move = get_move();
-               send_move(sock, &server_addr, move);
+        memset(all_cord, 0, sizeof(all_cord));
+
+        while(ingame){
+            while(SDL_PollEvent(&event)){
+                if (event.type  == SDL_QUIT){
+                    running = 0;
+                    ingame = 0;
+                    break;
+                }
             }
-            if (FD_ISSET(sock, &readfd)){
-                printf("Get new pos\n");
-                int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
-                if (bytes_received <= 0) perror("Failed get server message\n");
+            int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
+            if (bytes_received > 0){
                 if (serv_mes.type == MSG_POSITIONS)
                     memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
                 else if (serv_mes.type == MSG_GAME_OVER){
                     printf("Game over\n");
-                    break;
+                    ingame = 0;
                 }
-                else (printf("Get another server message type\n"));
             }
-            
+            players_rects = player_cords_to_rects(all_cord, MAX_PLAYERS, 50, 50);
+
+            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
+            SDL_RenderClear(renderer);
+            render_players(players_rects, MAX_PLAYERS, renderer);
+            SDL_RenderPresent(renderer);
+
+            const Uint8 *state = SDL_GetKeyboardState(NULL);
+            if (state[SDL_SCANCODE_LEFT])  { send_move(sock, &server_addr, LEFT_KEY); }
+            if (state[SDL_SCANCODE_RIGHT]) { send_move(sock, &server_addr, RIGHT_KEY); }
+            if (state[SDL_SCANCODE_UP])    { send_move(sock, &server_addr, UP_KEY); }
+            if (state[SDL_SCANCODE_DOWN])  { send_move(sock, &server_addr, DOWN_KEY); }
         }
-        printf("Press Y to play again or any other key to exit\n");
-        int choice = fgetc(stdin);
-        int c;
-        while ((c = fgetc(stdin)) != '\n' && c != EOF){}
-        if (tolower((unsigned char)choice) == 'y') break;
-    }*/
     }
+    if (players_rects != NULL ) free(players_rects);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

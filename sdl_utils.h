@@ -18,4 +18,12 @@ SDL_Rect *player_cords_to_rects(const player_cord *cords,
                                 int width,
                                 int height);
 
+/*
+ * Render player rectangles onto the screen.
+ *
+ * This function draws filled rectangles for each player using the
+ * provided SDL_Renderer. It expects valid pointers to both the
+ * rectangles array and the renderer.
+ */
+void render_players(SDL_Rect *players_rects, size_t count, SDL_Renderer *renderer);
 #endif
