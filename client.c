@@ -18,9 +18,9 @@ int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
         .type = SEND_CORD,
         .cord = cord
     };
-    int bytes_sent = sendto(sock, &mes, sizeof(cord), 0,
+    int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
             (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent <= 0){
+    if (bytes_sent != (int)sizeof(mes)){
         perror("Failed to send the mes\n");
         return 1;
     }
@@ -29,9 +29,9 @@ int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 int join_request(int sock, struct sockaddr_in *server_addr)
 {
     PLAYER_SIGNALS request = PLAYER_JOIN_REQUEST;
-    int bytes_sent = sendto(sock, &request, sizeof(int), 0,
+    int bytes_sent = sendto(sock, &request, sizeof(request), 0,
             (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent <= 0){
+    if (bytes_sent != (int)sizeof(request)){
         perror("Failed to send the request\n");
         return 1;
     }
@@ -107,7 +107,8 @@ int main()
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
-            if (bytes_received > 0 && resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
+            if (bytes_received == (int)sizeof(resp) &&
+                resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
                 menu = 0;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
@@ -116,6 +117,7 @@ int main()
             SDL_RenderFillRect(renderer, &join_button);
             SDL_RenderPresent(renderer);
         }
+        if (!running) break;
         ingame = 1;
         int id = resp.id;
         server_message serv_mes;
@@ -138,7 +140,7 @@ int main()
                 }
             }
             int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
-            if (bytes_received > 0){
+            if (bytes_received == (int)sizeof(serv_mes)){
                 if (serv_mes.type == MSG_POSITIONS)
                     memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
                 else if (serv_mes.type == MSG_GAME_OVER){
@@ -148,8 +150,8 @@ int main()
             }
             const Uint8 *state = SDL_GetKeyboardState(NULL);
             if (state[SDL_SCANCODE_LEFT])  all_cord[id].x ++;
-            if (state[SDL_SCANCODE_RIGHT])  all_cord[id].x --;
-            if (state[SDL_SCANCODE_UP])  all_cord[id].y --;
+            if (state[SDL_SCANCODE_RIGHT]) all_cord[id].x --;
+            if (state[SDL_SCANCODE_UP])    all_cord[id].y --;
             if (state[SDL_SCANCODE_DOWN])  all_cord[id].y ++;
             players_rects = player_cords_to_rects(all_cord, MAX_PLAYERS, 50, 50);
 
