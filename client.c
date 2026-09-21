@@ -12,13 +12,16 @@
 #include <fcntl.h>
 #include <SDL2/SDL.h>
 
-int send_move(int sock, struct sockaddr_in *server_addr, PLAYER_SIGNALS sig)
+int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 {
-    int signal = sig;
-    int bytes_sent = sendto(sock, &signal, sizeof(int), 0,
+    player_message mes = {
+        .type = SEND_CORD,
+        .cord = cord
+    };
+    int bytes_sent = sendto(sock, &mes, sizeof(cord), 0,
             (struct sockaddr *)server_addr, sizeof(*server_addr));
     if (bytes_sent <= 0){
-        perror("Failed to send the signal\n");
+        perror("Failed to send the mes\n");
         return 1;
     }
     return 0;
@@ -81,6 +84,7 @@ int main()
     SDL_Event event;
     int running = 1;
     SDL_Rect *players_rects;
+    server_message resp;
 
     while(running){
         int menu = 1;
@@ -102,9 +106,8 @@ int main()
                     }
                 }
             }
-            join_response resp;
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
-            if (bytes_received > 0 && resp.id != -1){
+            if (bytes_received > 0 && resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
                 menu = 0;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
@@ -114,12 +117,19 @@ int main()
             SDL_RenderPresent(renderer);
         }
         ingame = 1;
-
+        int id = resp.id;
         server_message serv_mes;
         player_cord all_cord[MAX_PLAYERS];
         memset(all_cord, 0, sizeof(all_cord));
 
+        const int FPS = 60;
+        const int FRAME_DELAY = 1000 / FPS;
+
+        Uint32 frameStart;
+        int frameTime;
+
         while(ingame){
+            frameStart = SDL_GetTicks();
             while(SDL_PollEvent(&event)){
                 if (event.type  == SDL_QUIT){
                     running = 0;
@@ -136,19 +146,24 @@ int main()
                     ingame = 0;
                 }
             }
+            const Uint8 *state = SDL_GetKeyboardState(NULL);
+            if (state[SDL_SCANCODE_LEFT])  all_cord[id].x ++;
+            if (state[SDL_SCANCODE_RIGHT])  all_cord[id].x --;
+            if (state[SDL_SCANCODE_UP])  all_cord[id].y --;
+            if (state[SDL_SCANCODE_DOWN])  all_cord[id].y ++;
             players_rects = player_cords_to_rects(all_cord, MAX_PLAYERS, 50, 50);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
             render_players(players_rects, MAX_PLAYERS, renderer);
             SDL_RenderPresent(renderer);
-            if (players_rects != NULL ) free(players_rects);
 
-            const Uint8 *state = SDL_GetKeyboardState(NULL);
-            if (state[SDL_SCANCODE_LEFT])  { send_move(sock, &server_addr, LEFT_KEY); }
-            if (state[SDL_SCANCODE_RIGHT]) { send_move(sock, &server_addr, RIGHT_KEY); }
-            if (state[SDL_SCANCODE_UP])    { send_move(sock, &server_addr, UP_KEY); }
-            if (state[SDL_SCANCODE_DOWN])  { send_move(sock, &server_addr, DOWN_KEY); }
+            send_move(sock, &server_addr, all_cord[id]);
+            if (players_rects != NULL ) free(players_rects);
+            frameTime = SDL_GetTicks() - frameStart;
+            if (FRAME_DELAY > frameTime) {
+                SDL_Delay(FRAME_DELAY - frameTime);
+            }
         }
     }
     SDL_DestroyRenderer(renderer);

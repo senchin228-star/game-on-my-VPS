@@ -24,8 +24,8 @@ int player_join(session_info *session, int server_sock, struct sockaddr_in *clie
         acc = PLAYER_JOIN_ACCEPT;
     }
 
-    join_response resp = {
-        .status = acc,
+    server_message resp = {
+        .type = acc,
         .id = index
     };
     // ANSWER FOR CLIENT

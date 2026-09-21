@@ -6,17 +6,18 @@
 #define TIME_FOR_EXIT 60
 #include <arpa/inet.h>
 typedef enum {
-    PLAYER_JOIN_ACCEPT,
-    PLAYER_JOIN_DENIED,
     PLAYER_JOIN_REQUEST,
     NO_KEY,
     UP_KEY,
     DOWN_KEY,
     LEFT_KEY,
-    RIGHT_KEY
+    RIGHT_KEY,
+    SEND_CORD
 } PLAYER_SIGNALS;
 
 typedef enum {
+    PLAYER_JOIN_DENIED,
+    PLAYER_JOIN_ACCEPT,
     MSG_POSITIONS,
     MSG_GAME_OVER,
 } MESSAGE_TYPE;
@@ -32,13 +33,14 @@ typedef struct {
     MESSAGE_TYPE type;
     player_cord positions[MAX_PLAYERS];   // valid if type == MSG_POSITIONS
     int left_time;
+    int id;
 } server_message;
 
 
 typedef struct {
-    PLAYER_SIGNALS status;
-    int id;
-} join_response;
+    PLAYER_SIGNALS type;
+    player_cord cord;
+} player_message;
 
 typedef struct {
     struct sockaddr_in player_addr;
