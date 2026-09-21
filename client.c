@@ -122,7 +122,7 @@ int main()
         int id = resp.id;
         server_message serv_mes;
         player_cord all_cord[MAX_PLAYERS];
-        memset(all_cord, 0, sizeof(all_cord));
+        player_cord my_cord = {0};
 
         const int FPS = 60;
         const int FRAME_DELAY = 1000 / FPS;
@@ -141,18 +141,26 @@ int main()
             }
             int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
             if (bytes_received == (int)sizeof(serv_mes)){
-                if (serv_mes.type == MSG_POSITIONS)
-                    memcpy(all_cord, serv_mes.positions, sizeof(all_cord));
+                if (serv_mes.type == MSG_POSITIONS) {
+                    for (int i = 0; i < MAX_PLAYERS; i++) {
+                        if (i != id) {
+                            all_cord[i] = serv_mes.positions[i];
+                        }
+                    }
+                    all_cord[id] = my_cord;
+                }
                 else if (serv_mes.type == MSG_GAME_OVER){
                     printf("Game over\n");
                     ingame = 0;
                 }
             }
+            player_cord previous_cord = my_cord;
+
             const Uint8 *state = SDL_GetKeyboardState(NULL);
-            if (state[SDL_SCANCODE_LEFT])  all_cord[id].x ++;
-            if (state[SDL_SCANCODE_RIGHT]) all_cord[id].x --;
-            if (state[SDL_SCANCODE_UP])    all_cord[id].y --;
-            if (state[SDL_SCANCODE_DOWN])  all_cord[id].y ++;
+            if (state[SDL_SCANCODE_LEFT])  my_cord.x--;
+            if (state[SDL_SCANCODE_RIGHT]) my_cord.x++;
+            if (state[SDL_SCANCODE_UP])    my_cord.y++;
+            if (state[SDL_SCANCODE_DOWN])  my_cord.y--;
             players_rects = player_cords_to_rects(all_cord, MAX_PLAYERS, 50, 50);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
@@ -160,8 +168,13 @@ int main()
             render_players(players_rects, MAX_PLAYERS, renderer);
             SDL_RenderPresent(renderer);
 
-            send_move(sock, &server_addr, all_cord[id]);
+            if (my_cord.x != previous_cord.x ||
+                my_cord.y != previous_cord.y) {
+                send_move(sock, &server_addr, my_cord);
+            }
+
             if (players_rects != NULL ) free(players_rects);
+
             frameTime = SDL_GetTicks() - frameStart;
             if (FRAME_DELAY > frameTime) {
                 SDL_Delay(FRAME_DELAY - frameTime);
