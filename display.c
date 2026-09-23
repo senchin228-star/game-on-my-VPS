@@ -9,8 +9,8 @@ void print_player_pos(session_info  *session, int id)
         return;
     }
     int x, y;
-    x = session->cord[id].x;
-    y = session->cord[id].y;
+    x = session->players_client[id].cord.x;
+    y = session->players_client[id].cord.y;
     printf("ID: %d X: %d, Y: %d\n", id, x, y);
 }
 

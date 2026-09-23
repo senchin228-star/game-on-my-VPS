@@ -51,7 +51,7 @@ int player_join(session_info *session, int server_sock,
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
         (ssize_t)sizeof(response)) {
-        perror("Failed to send join response");
+        perror("Failed to send join response\n");
         return 1;
     }
 
@@ -62,8 +62,19 @@ int player_join(session_info *session, int server_sock,
 
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
-    session->cord[index] = (player_cord){ .id = index, .x = 0, .y = 0 };
+    session->players_client[index].cord = (player_cord){.x = 0, .y = 0 };
     session->ready_players++;
+
+    server_message new_player_mes = {
+        .type = MSG_NEW_PLAYER,
+        .players_in_lobby = session->ready_players,
+        .id = index
+    };
+    for (int i = 0; i < MAX_PLAYERS; i++){
+        if (send_server_message(server_sock, &session->players[i], &new_player_mes) != 0){
+            fprintf(stderr, "Send message MSG_NEW_PLAYER for id: %d error\n",i);
+        }
+    }
 
     printf("New player:\n");
     print_player(session, index);
@@ -90,6 +101,14 @@ int wait_players(session_info *session, int server_sock)
             continue;
         }
         player_join(session, server_sock, &client_addr);
+    }
+    for (int i = 0; i < session->ready_players; i++){
+        server_message mes_start= {
+            .type = MSG_GAME_START,
+            .left_time = TIME_FOR_EXIT,
+        };
+        if (send_server_message(server_sock, session->players + i, &mes_start) == 1)
+            fprintf(stderr, "Failed send message to start fot player: %d\n",i);
     }
     return 0;
 }
@@ -123,15 +142,14 @@ int move_handle(session_info *session, int sock)
     }
     if (id < 0) return 1; /* Ignore packets from unknown clients. */
 
-    session->cord[id] = message.cord;
-    session->cord[id].id = id; /* Never trust a client-supplied player id. */
+    session->players_client[id].cord = message.cord;
     print_player_pos(session, id);
 
     server_message response = {
-        .type = MSG_POSITIONS,
+        .type = MSG_CLIENTS_INFO,
         .left_time = session->session_time
     };
-    memcpy(response.positions, session->cord, sizeof(response.positions));
+    memcpy(response.players, session->players_client, sizeof(response.players));
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (session->players[i].ready) {
@@ -153,7 +171,7 @@ void session_end(session_info *session, int sock)
         send_server_message(sock, &session->players[i], &message);
     }
 
-    memset(session->cord, 0, sizeof(session->cord));
+    memset(session->players_client, 0, sizeof(session->players_client));
     memset(session->players, 0, sizeof(session->players));
     session->ready_players = 0;
     session->session_time = 0;
@@ -163,8 +181,6 @@ int main(void)
 {
     session_info session = {
         .session_number = 1,
-        .players = {0},
-        .cord = {0},
         .ready_players = 0,
         .session_time = 0
     };

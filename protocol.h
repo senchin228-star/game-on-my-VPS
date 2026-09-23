@@ -18,20 +18,27 @@ typedef enum {
 typedef enum {
     PLAYER_JOIN_DENIED,
     PLAYER_JOIN_ACCEPT,
-    MSG_POSITIONS,
+    MSG_CLIENTS_INFO,
     MSG_GAME_OVER,
+    MSG_GAME_START,
+    MSG_NEW_PLAYER
 } MESSAGE_TYPE;
 
 typedef struct {
-    int id;
     int x;
     int y;
 } player_cord;
 
+typedef struct {
+    player_cord cord;
+    int id;
+} player_client_info;
+
 
 typedef struct {
     MESSAGE_TYPE type;
-    player_cord positions[MAX_PLAYERS];   // valid if type == MSG_POSITIONS
+    player_client_info players[MAX_PLAYERS];
+    int players_in_lobby;
     int left_time;
     int id;
 } server_message;
@@ -50,7 +57,7 @@ typedef struct {
 typedef struct {
     int session_number;
     player_info players[MAX_PLAYERS];
-    player_cord cord[MAX_PLAYERS];
+    player_client_info players_client[MAX_PLAYERS];
     int ready_players;
     int session_time;
 } session_info;

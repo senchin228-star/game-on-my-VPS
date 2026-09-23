@@ -99,6 +99,7 @@ int main()
     while(running){
         int menu = 1;
         int ingame = 0;
+        int lobby = 0;
         while(menu){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
@@ -119,6 +120,7 @@ int main()
             if (bytes_received == (int)sizeof(resp) &&
                 resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
                 menu = 0;
+                ingame = 1;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
@@ -132,15 +134,27 @@ int main()
             SDL_RenderPresent(renderer);
         }
         if (!running) break;
-        ingame = 1;
         int id = resp.id;
         server_message serv_mes;
-        player_cord all_cord[MAX_PLAYERS];
+        player_client_info all_players[MAX_PLAYERS]  = {0};
         player_cord my_cord = {0};
+
+        while (lobby){
+            while (SDL_PollEvent(&event)){
+                if (event.type == SDL_QUIT){
+                    lobby = 0;
+                    menu = 1;
+                }
+            }
+            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            if(bytes_received == (int)sizeof(resp) && resp.type == MSG_GAME_START){
+                lobby = 0; 
+                ingame = 1;
+            }
+        }
 
         const int FPS = 60;
         const int FRAME_DELAY = 1000 / FPS;
-
         Uint32 frameStart;
         int frameTime;
 
@@ -155,13 +169,13 @@ int main()
             }
             int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
             if (bytes_received == (int)sizeof(serv_mes)){
-                if (serv_mes.type == MSG_POSITIONS) {
+                if (serv_mes.type == MSG_CLIENTS_INFO) {
                     for (int i = 0; i < MAX_PLAYERS; i++) {
                         if (i != id) {
-                            all_cord[i] = serv_mes.positions[i];
+                            all_players[i] = serv_mes.players[i];
                         }
                     }
-                    all_cord[id] = my_cord;
+                    all_players[id].cord = my_cord;
                 }
                 else if (serv_mes.type == MSG_GAME_OVER){
                     printf("Game over\n");
@@ -175,7 +189,7 @@ int main()
             if (state[SDL_SCANCODE_RIGHT]) my_cord.x++;
             if (state[SDL_SCANCODE_UP])    my_cord.y++;
             if (state[SDL_SCANCODE_DOWN])  my_cord.y--;
-            players_rects = player_cords_to_rects(all_cord, MAX_PLAYERS, 50, 50);
+            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);

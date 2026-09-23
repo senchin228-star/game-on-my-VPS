@@ -14,7 +14,7 @@
  * free() by the caller. NULL is returned when cords is NULL, count is zero,
  * or the allocation fails.
  */
-SDL_Rect *player_cords_to_rects(const player_cord *cords,
+SDL_Rect *player_cords_to_rects(const player_client_info *players,
                                 size_t count,
                                 int width,
                                 int height);
