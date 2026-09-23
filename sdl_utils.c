@@ -26,12 +26,15 @@ SDL_Rect *player_cords_to_rects(const player_client_info *players,
     return rects;
 }
 
-void render_players(SDL_Rect *players_rects, size_t count, SDL_Renderer *renderer)
+void render_players(SDL_Rect *players_rects, player_client_info *players, size_t count, SDL_Renderer *renderer)
 {
-    if (players_rects == NULL || renderer == NULL) printf("Wrong arg in render_players");
-    SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255); // Green
+    if (players_rects == NULL || renderer == NULL || players  == NULL) printf("Wrong arg in render_players");
 
     for (size_t i = 0; i < count; i++){
+        SDL_SetRenderDrawColor(renderer, 0, players[i].color.R,
+                                            players[i].color.G,
+                                            players[i].color.B);
+
         SDL_RenderFillRect(renderer, players_rects + i); 
     }
 }

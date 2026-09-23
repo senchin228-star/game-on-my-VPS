@@ -5,10 +5,12 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
 #include <time.h>
 #include <unistd.h>
+
 
 static int same_player(const struct sockaddr_in *left,
                        const struct sockaddr_in *right)
@@ -46,8 +48,12 @@ int player_join(session_info *session, int server_sock,
 
     server_message response = {
         .type = index >= 0 ? PLAYER_JOIN_ACCEPT : PLAYER_JOIN_DENIED,
-        .id = index
+        .id = index,
     };
+    session->players_client[index].color.R = rand() % 256;
+    session->players_client[index].color.G = rand() % 256;
+    session->players_client[index].color.B = rand() % 256;
+    memcpy(response.players, session->players_client, sizeof(response.players));
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
         (ssize_t)sizeof(response)) {
@@ -179,6 +185,7 @@ void session_end(session_info *session, int sock)
 
 int main(void)
 {
+    srand(time(NULL)); // for random color
     session_info session = {
         .session_number = 1,
         .ready_players = 0,

@@ -90,6 +90,7 @@ int main()
     SDL_Event event;
     int running = 1;
     SDL_Rect *players_rects;
+
     server_message resp;
 
     SDL_Texture *connect_but_tex = make_texture(renderer, "image/connect_but.png");
@@ -135,8 +136,8 @@ int main()
         }
         if (!running) break;
         int id = resp.id;
-        server_message serv_mes;
-        player_client_info all_players[MAX_PLAYERS]  = {0};
+        player_client_info all_players[MAX_PLAYERS];
+        memcpy(all_players, resp.players, sizeof(all_players));
         player_cord my_cord = {0};
 
         while (lobby){
@@ -167,17 +168,17 @@ int main()
                     break;
                 }
             }
-            int bytes_received = recvfrom(sock, &serv_mes, sizeof(serv_mes), 0, NULL, NULL);
-            if (bytes_received == (int)sizeof(serv_mes)){
-                if (serv_mes.type == MSG_CLIENTS_INFO) {
+            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            if (bytes_received == (int)sizeof(resp)){
+                if (resp.type == MSG_CLIENTS_INFO) {
                     for (int i = 0; i < MAX_PLAYERS; i++) {
                         if (i != id) {
-                            all_players[i] = serv_mes.players[i];
+                            all_players[i] = resp.players[i];
                         }
                     }
                     all_players[id].cord = my_cord;
                 }
-                else if (serv_mes.type == MSG_GAME_OVER){
+                else if (resp.type == MSG_GAME_OVER){
                     printf("Game over\n");
                     ingame = 0;
                 }
@@ -193,7 +194,7 @@ int main()
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
-            render_players(players_rects, MAX_PLAYERS, renderer);
+            render_players(players_rects, all_players, MAX_PLAYERS, renderer);
             SDL_RenderPresent(renderer);
 
             if (my_cord.x != previous_cord.x ||

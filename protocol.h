@@ -5,6 +5,8 @@
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
 #include <arpa/inet.h>
+#include <SDL2/SDL.h>
+
 typedef enum {
     PLAYER_JOIN_REQUEST,
     NO_KEY,
@@ -25,12 +27,20 @@ typedef enum {
 } MESSAGE_TYPE;
 
 typedef struct {
+    Uint8 R;
+    Uint8 G;
+    Uint8 B;
+    Uint8 A;
+} rgba_color;
+
+typedef struct {
     int x;
     int y;
 } player_cord;
 
 typedef struct {
     player_cord cord;
+    rgba_color color;
     int id;
 } player_client_info;
 
@@ -61,6 +71,7 @@ typedef struct {
     int ready_players;
     int session_time;
 } session_info;
+
 #endif
 
 

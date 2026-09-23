@@ -26,7 +26,7 @@ SDL_Rect *player_cords_to_rects(const player_client_info *players,
  * provided SDL_Renderer. It expects valid pointers to both the
  * rectangles array and the renderer.
  */
-void render_players(SDL_Rect *players_rects, size_t count, SDL_Renderer *renderer);
+void render_players(SDL_Rect *players_rects, player_client_info *players, size_t count, SDL_Renderer *renderer);
 
 /**
  * * Create an SDL_Texture from an image file.
