@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 {
@@ -55,9 +56,13 @@ int main()
         return 1;
     }
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO || SDL_INIT_EVENTS) < 0) {
         printf("Init SDL error: %s\n", SDL_GetError());
         return 1;
+    }
+
+    if (IMG_Init(IMG_INIT_PNG) == 0){
+        perror("Error SDL2_image Initialization");
     }
 
     SDL_Window* window = SDL_CreateWindow(
@@ -73,7 +78,8 @@ int main()
         return 1;
     }
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1,
+            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) {
         printf("Create rederer error: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
@@ -86,10 +92,21 @@ int main()
     SDL_Rect *players_rects;
     server_message resp;
 
+    SDL_Surface *connect_but_sur = IMG_Load("image/connect_but.png");
+    if (connect_but_sur == NULL){
+        printf("Error loading image: %s", IMG_GetError());
+    }
+    SDL_Texture *connect_but_tex  = SDL_CreateTextureFromSurface(renderer, connect_but_sur);
+    if (connect_but_tex == NULL) {
+        perror("Error creating texture");
+    }
+    SDL_FreeSurface(connect_but_sur);
+
+    SDL_Rect join_button = { .x = 300, .y = 260, .w = 200, .h = 80 };
+
     while(running){
         int menu = 1;
         int ingame = 0;
-        SDL_Rect join_button = { .x = 300, .y = 250, .w = 200, .h = 50 };
         while(menu){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
@@ -113,8 +130,13 @@ int main()
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
-            SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255); // Green
-            SDL_RenderFillRect(renderer, &join_button);
+            if (connect_but_tex != NULL){
+                SDL_RenderCopy(renderer, connect_but_tex, NULL, &join_button);
+            }
+            else{ // if texture not exist
+                SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255); // Green
+                SDL_RenderFillRect(renderer, &join_button);
+            }
             SDL_RenderPresent(renderer);
         }
         if (!running) break;
