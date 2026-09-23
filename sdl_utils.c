@@ -36,3 +36,20 @@ void render_players(SDL_Rect *players_rects, size_t count, SDL_Renderer *rendere
     }
 }
 
+SDL_Texture* make_texture(SDL_Renderer *renderer, char *dir)
+{
+    if (dir == NULL) return NULL;
+    SDL_Surface *surface = IMG_Load(dir);
+    if (surface == NULL){
+        fprintf(stderr, "Error create surface for %s: %s\n",dir, IMG_GetError());
+        return NULL;
+    }
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (texture == NULL){
+        fprintf(stderr, "Error create texture for %s: %s\n", dir, SDL_GetError());
+        return NULL;
+    }
+    SDL_FreeSurface(surface);
+    return texture;
+}
+

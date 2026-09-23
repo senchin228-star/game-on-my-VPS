@@ -62,7 +62,7 @@ int main()
     }
 
     if (IMG_Init(IMG_INIT_PNG) == 0){
-        perror("Error SDL2_image Initialization");
+        fprintf(stderr, "Error SDL2_image Initialization: %s\n", IMG_GetError());
     }
 
     SDL_Window* window = SDL_CreateWindow(
@@ -92,15 +92,7 @@ int main()
     SDL_Rect *players_rects;
     server_message resp;
 
-    SDL_Surface *connect_but_sur = IMG_Load("image/connect_but.png");
-    if (connect_but_sur == NULL){
-        printf("Error loading image: %s", IMG_GetError());
-    }
-    SDL_Texture *connect_but_tex  = SDL_CreateTextureFromSurface(renderer, connect_but_sur);
-    if (connect_but_tex == NULL) {
-        perror("Error creating texture");
-    }
-    SDL_FreeSurface(connect_but_sur);
+    SDL_Texture *connect_but_tex = make_texture(renderer, "image/connect_but.png");
 
     SDL_Rect join_button = { .x = 300, .y = 260, .w = 200, .h = 80 };
 
