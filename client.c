@@ -121,7 +121,7 @@ int main()
             if (bytes_received == (int)sizeof(resp) &&
                 resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
                 menu = 0;
-                ingame = 1;
+                lobby = 1;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
@@ -138,7 +138,7 @@ int main()
         int id = resp.id;
         player_client_info all_players[MAX_PLAYERS];
         memcpy(all_players, resp.players, sizeof(all_players));
-        player_cord my_cord = {0};
+        player_cord my_cord = resp.players[id].cord;
 
         while (lobby){
             while (SDL_PollEvent(&event)){
@@ -148,10 +148,19 @@ int main()
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            if(bytes_received == (int)sizeof(resp) && resp.type == MSG_NEW_PLAYER){
+                memcpy(all_players, resp.players, sizeof(all_players));
+            }
+
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_GAME_START){
                 lobby = 0; 
                 ingame = 1;
             }
+            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
+            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
+            SDL_RenderClear(renderer);
+            render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+            SDL_RenderPresent(renderer);
         }
 
         const int FPS = 60;

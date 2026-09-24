@@ -17,6 +17,7 @@ SDL_Rect *player_cords_to_rects(const player_client_info *players,
     }
 
     for (size_t i = 0; i < count; ++i) {
+        if (!players[i].ingame) continue;
         rects[i].x = players[i].cord.x;
         rects[i].y = players[i].cord.y  * -1;
         rects[i].w = width;

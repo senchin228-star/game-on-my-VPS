@@ -53,6 +53,9 @@ int player_join(session_info *session, int server_sock,
     session->players_client[index].color.R = rand() % 256;
     session->players_client[index].color.G = rand() % 256;
     session->players_client[index].color.B = rand() % 256;
+    session->players_client[index].cord.x = 10;
+    session->players_client[index].cord.y = -10 - index * 60;
+    session->players_client[index].ingame = 1;
     memcpy(response.players, session->players_client, sizeof(response.players));
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
@@ -68,15 +71,17 @@ int player_join(session_info *session, int server_sock,
 
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
-    session->players_client[index].cord = (player_cord){.x = 0, .y = 0 };
     session->ready_players++;
 
     server_message new_player_mes = {
         .type = MSG_NEW_PLAYER,
         .players_in_lobby = session->ready_players,
-        .id = index
+        .id = index,
     };
+    memcpy(new_player_mes.players, session->players_client, sizeof(new_player_mes.players));
+
     for (int i = 0; i < MAX_PLAYERS; i++){
+        if (!session->players[i].ready) continue;
         if (send_server_message(server_sock, &session->players[i], &new_player_mes) != 0){
             fprintf(stderr, "Send message MSG_NEW_PLAYER for id: %d error\n",i);
         }

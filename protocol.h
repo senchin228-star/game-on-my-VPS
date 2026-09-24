@@ -42,6 +42,7 @@ typedef struct {
     player_cord cord;
     rgba_color color;
     int id;
+    int ingame;
 } player_client_info;
 
 
