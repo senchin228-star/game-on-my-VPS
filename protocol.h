@@ -4,6 +4,7 @@
 #define MAX_PLAYERS 2
 #define PLAYERS_TO_START 2
 #define TIME_FOR_EXIT 60
+#define COUNTDOWN_SECONDS 5
 #include <arpa/inet.h>
 #include <SDL2/SDL.h>
 
@@ -23,7 +24,7 @@ typedef enum {
     MSG_CLIENTS_INFO,
     MSG_GAME_OVER,
     MSG_GAME_START,
-    MSG_NEW_PLAYER
+    MSG_LOBBY_INFO
 } MESSAGE_TYPE;
 
 typedef struct {

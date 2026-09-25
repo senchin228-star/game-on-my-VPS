@@ -12,6 +12,16 @@
 #include <unistd.h>
 
 
+static double monotonic_seconds(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    return (double)ts.tv_sec +
+           (double)ts.tv_nsec / 1000000000.0;
+}
+
 static int same_player(const struct sockaddr_in *left,
                        const struct sockaddr_in *right)
 {
@@ -31,6 +41,119 @@ static int send_server_message(int sock, const player_info *player,
         return 1;
     }
     return 0;
+}
+static void broadcast_lobby_status(session_info *session, int sock, int left_time)
+{
+    server_message message = {
+        .type = MSG_LOBBY_INFO,
+        .left_time = left_time,
+        .players_in_lobby = session->ready_players
+    };
+    memcpy(message.players, session->players_client, sizeof(message.players));
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (session->players[i].ready) {
+            send_server_message(sock, &session->players[i], &message);
+        }
+    }
+}
+
+static void broadcast_game_start(session_info *session, int sock)
+{
+    server_message message = {
+        .type = MSG_GAME_START,
+        .left_time = 0
+    };
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (session->players[i].ready) {
+            send_server_message(sock, &session->players[i], &message);
+        }
+    }
+}
+
+static int countdown(session_info *session, int server_sock)
+{
+    double start_time = monotonic_seconds();
+    int previous_left_time = -1;
+
+    while (1) {
+        double now = monotonic_seconds();
+        double elapsed = now - start_time;
+
+        int left_time = COUNTDOWN_SECONDS - (int)elapsed;
+
+        if (left_time < 0) {
+            left_time = 0;
+        }
+
+        //send when time changed
+        if (left_time != previous_left_time) {
+            broadcast_lobby_status(session, server_sock, left_time);
+            previous_left_time = left_time;
+
+            printf("Game starts in: %d\n", left_time);
+        }
+
+        if (elapsed >= COUNTDOWN_SECONDS) {
+            broadcast_game_start(session, server_sock);
+            return 0;
+        }
+
+        // wait udp-packet max 100ms
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(server_sock, &readfds);
+
+        struct timeval timeout = {
+            .tv_sec = 0,
+            .tv_usec = 100000
+        };
+
+        int result = select(
+            server_sock + 1,
+            &readfds,
+            NULL,
+            NULL,
+            &timeout
+        );
+
+        if (result < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            perror("select during countdown");
+            return 1;
+        }
+
+        // HANDLE PLAYER SIGNAL
+        if (result > 0 && FD_ISSET(server_sock, &readfds)) {
+            player_message message;
+            struct sockaddr_in client_addr;
+            socklen_t client_addr_len = sizeof(client_addr);
+
+            ssize_t bytes_received = recvfrom(
+                server_sock,
+                &message,
+                sizeof(message),
+                0,
+                (struct sockaddr *)&client_addr,
+                &client_addr_len
+            );
+
+            if (bytes_received < 0) {
+                if (errno == EINTR || errno == EAGAIN ||
+                    errno == EWOULDBLOCK) {
+                    continue;
+                }
+
+                perror("recvfrom during countdown");
+                continue;
+            }
+            // HANDLE PLAYER SIGNALS
+        }
+    }
 }
 
 int player_join(session_info *session, int server_sock,
@@ -72,20 +195,8 @@ int player_join(session_info *session, int server_sock,
     session->players[index].ready = 1;
     session->players[index].player_addr = *client_addr;
     session->ready_players++;
-
-    server_message new_player_mes = {
-        .type = MSG_NEW_PLAYER,
-        .players_in_lobby = session->ready_players,
-        .id = index,
-    };
-    memcpy(new_player_mes.players, session->players_client, sizeof(new_player_mes.players));
-
-    for (int i = 0; i < MAX_PLAYERS; i++){
-        if (!session->players[i].ready) continue;
-        if (send_server_message(server_sock, &session->players[i], &new_player_mes) != 0){
-            fprintf(stderr, "Send message MSG_NEW_PLAYER for id: %d error\n",i);
-        }
-    }
+    int left_time = 0;
+    broadcast_lobby_status(session, server_sock, left_time);
 
     printf("New player:\n");
     print_player(session, index);
@@ -113,14 +224,8 @@ int wait_players(session_info *session, int server_sock)
         }
         player_join(session, server_sock, &client_addr);
     }
-    for (int i = 0; i < session->ready_players; i++){
-        server_message mes_start= {
-            .type = MSG_GAME_START,
-            .left_time = TIME_FOR_EXIT,
-        };
-        if (send_server_message(server_sock, session->players + i, &mes_start) == 1)
-            fprintf(stderr, "Failed send message to start fot player: %d\n",i);
-    }
+    countdown(session, server_sock);
+    broadcast_game_start(session, server_sock);
     return 0;
 }
 
@@ -170,6 +275,7 @@ int move_handle(session_info *session, int sock)
     return 0;
 }
 
+
 void session_end(session_info *session, int sock)
 {
     session->session_number++;
@@ -187,7 +293,29 @@ void session_end(session_info *session, int sock)
     session->ready_players = 0;
     session->session_time = 0;
 }
+void run_game(session_info *session, int server_sock, size_t start_time)
+{
+    while(1){
+        time_t now = time(NULL);
+        session->session_time = (int)(now - start_time);
+        if (session->session_time >= TIME_FOR_EXIT) break;
 
+        fd_set readfd;
+        FD_ZERO(&readfd);
+        FD_SET(server_sock, &readfd);
+        struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
+
+        int result = select(server_sock + 1, &readfd, NULL, NULL, &timeout);
+        if (result < 0) {
+            if (errno == EINTR) continue;
+            perror("select error");
+            break;
+        }
+        if (result > 0 && FD_ISSET(server_sock, &readfd)) {
+            move_handle(session, server_sock);
+        }
+    }
+}
 int main(void)
 {
     srand(time(NULL)); // for random color
@@ -220,27 +348,8 @@ int main(void)
         wait_players(&session, server_sock);
         printf("GAME START\n");
 
-        time_t start_time = time(NULL);
-        while (1) {
-            time_t now = time(NULL);
-            session.session_time = (int)(now - start_time);
-            if (session.session_time >= TIME_FOR_EXIT) break;
-
-            fd_set readfd;
-            FD_ZERO(&readfd);
-            FD_SET(server_sock, &readfd);
-            struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
-
-            int result = select(server_sock + 1, &readfd, NULL, NULL, &timeout);
-            if (result < 0) {
-                if (errno == EINTR) continue;
-                perror("select error");
-                break;
-            }
-            if (result > 0 && FD_ISSET(server_sock, &readfd)) {
-                move_handle(&session, server_sock);
-            }
-        }
+        time_t start_time = time(NULL); //for random color
+        run_game(&session, server_sock, start_time);
 
         printf("game ended\n");
         session_end(&session, server_sock);

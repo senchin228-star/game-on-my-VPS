@@ -148,8 +148,10 @@ int main()
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
-            if(bytes_received == (int)sizeof(resp) && resp.type == MSG_NEW_PLAYER){
+            int lobby_time = 0;
+            if(bytes_received == (int)sizeof(resp) && resp.type == MSG_LOBBY_INFO){
                 memcpy(all_players, resp.players, sizeof(all_players));
+                lobby_time = resp.left_time;
             }
 
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_GAME_START){
