@@ -252,10 +252,10 @@ int main(int argc, char *argv[])
             player_cord previous_cord = my_cord;
 
             const Uint8 *state = SDL_GetKeyboardState(NULL);
-            if (state[SDL_SCANCODE_LEFT])  my_cord.x--;
-            if (state[SDL_SCANCODE_RIGHT]) my_cord.x++;
-            if (state[SDL_SCANCODE_UP])    my_cord.y++;
-            if (state[SDL_SCANCODE_DOWN])  my_cord.y--;
+            if (state[SDL_SCANCODE_LEFT])  my_cord.x -= PLAYER_SPEED;
+            if (state[SDL_SCANCODE_RIGHT]) my_cord.x += PLAYER_SPEED;
+            if (state[SDL_SCANCODE_UP])    my_cord.y += PLAYER_SPEED;
+            if (state[SDL_SCANCODE_DOWN])  my_cord.y -= PLAYER_SPEED;
             players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue

@@ -1,11 +1,8 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#define MAX_PLAYERS 2
-#define PLAYERS_TO_START 2
-#define TIME_FOR_EXIT 60
-#define COUNTDOWN_SECONDS 5
 #include <arpa/inet.h>
+#include "config.h"
 
 typedef enum {
     PLAYER_JOIN_REQUEST,
