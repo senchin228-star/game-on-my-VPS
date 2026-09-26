@@ -44,6 +44,7 @@ typedef struct {
     rgba_color color;
     int id;
     int ingame;
+    char nickname[128];
 } player_client_info;
 
 
@@ -59,6 +60,7 @@ typedef struct {
 typedef struct {
     PLAYER_SIGNALS type;
     player_cord cord;
+    char nickname[128];
 } player_message;
 
 typedef struct {

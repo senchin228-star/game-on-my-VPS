@@ -127,7 +127,7 @@ static int countdown(session_info *session, int server_sock)
 }
 
 int player_join(session_info *session, int server_sock,
-                const struct sockaddr_in *client_addr)
+                const struct sockaddr_in *client_addr, char* nick)
 {
     if (session == NULL || client_addr == NULL) return 1;
 
@@ -150,8 +150,12 @@ int player_join(session_info *session, int server_sock,
         session->players_client[index].cord.x = 10;
         session->players_client[index].cord.y = -10 - index * 60;
         session->players_client[index].ingame = 1;
-        memcpy(response.players, session->players_client, sizeof(response.players));
+        printf("Nick: %s\n", nick);
+        snprintf(session->players_client[index].nickname,
+                sizeof(session->players_client[index].nickname),"%s", nick);
     }
+    memcpy(response.players, session->players_client, sizeof(response.players));
+
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
         (ssize_t)sizeof(response)) {
@@ -178,7 +182,7 @@ int player_join(session_info *session, int server_sock,
 int wait_players(session_info *session, int server_sock)
 {
     while (session->ready_players < PLAYERS_TO_START) {
-        PLAYER_SIGNALS request;
+        player_message request;
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
@@ -191,10 +195,10 @@ int wait_players(session_info *session, int server_sock)
             continue;
         }
         if (bytes_received != (ssize_t)sizeof(request) ||
-            request != PLAYER_JOIN_REQUEST) {
+            request.type != PLAYER_JOIN_REQUEST /*|| request.nickname == NULL*/) {
             continue;
         }
-        player_join(session, server_sock, &client_addr);
+        player_join(session, server_sock, &client_addr, request.nickname);
     }
     countdown(session, server_sock);
     broadcast_game_start(session, server_sock);

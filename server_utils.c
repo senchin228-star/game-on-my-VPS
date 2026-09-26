@@ -42,7 +42,8 @@ void print_player_pos(session_info  *session, int id)
     int x, y;
     x = session->players_client[id].cord.x;
     y = session->players_client[id].cord.y;
-    printf("ID: %d X: %d, Y: %d\n", id, x, y);
+    printf("Nick: %s ID: %d X: %d, Y: %d\n",session->players_client[id].nickname,
+                                             id, x, y);
 }
 
 void print_player(session_info *session, int id)
@@ -60,6 +61,7 @@ void print_player(session_info *session, int id)
                         player_ip, INET_ADDRSTRLEN);
     int player_port = ntohs(session->players[id].player_addr.sin_port);
     printf("ID: %d IP: %s PORT: %d\n", id, player_ip, player_port);
+    printf("Nickname: %s\n", session->players_client[id].nickname);
     return;
 }
 

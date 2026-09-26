@@ -29,9 +29,13 @@ int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
     }
     return 0;
 }
-int join_request(int sock, struct sockaddr_in *server_addr)
+int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
 {
-    PLAYER_SIGNALS request = PLAYER_JOIN_REQUEST;
+    player_message request = {
+        .type = PLAYER_JOIN_REQUEST,
+    };
+    strncpy(request.nickname, nick, sizeof(request.nickname) - 1);
+    request.nickname[sizeof(request.nickname) - 1] = '\0';
     int bytes_sent = sendto(sock, &request, sizeof(request), 0,
             (struct sockaddr *)server_addr, sizeof(*server_addr));
     if (bytes_sent != (int)sizeof(request)){
@@ -41,8 +45,12 @@ int join_request(int sock, struct sockaddr_in *server_addr)
     return 0;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    if (argc != 2){
+        printf("Need nickname");
+        return 1;
+    }
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("Socket create error\n");
@@ -135,7 +143,7 @@ int main()
                     if (event.button.button == SDL_BUTTON_LEFT){
                         SDL_Point mouse_pos = {.x = event.button.x, .y = event.button.y};
                         if (SDL_PointInRect(&mouse_pos, &join_button)){
-                            if (join_request(sock, &server_addr) != 0) return 1;
+                            if (join_request(sock, &server_addr, argv[1]) != 0) return 1;
                         }
                     }
                 }
