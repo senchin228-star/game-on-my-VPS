@@ -70,9 +70,9 @@ int main()
     }
 
     // Load font
-    TTF_Font *font_large = load_font("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 48);
-    TTF_Font *font_medium = load_font("/usr/share/fonts/TTF/DejaVuSans.ttf", 32);
-    TTF_Font *font_small = load_font("/usr/share/fonts/TTF/DejaVuSans.ttf", 24);
+    TTF_Font *font_large = load_font("fonts/DejaVuSans-Bold.ttf", 48);
+    TTF_Font *font_medium = load_font("fonts/DejaVuSans.ttf", 32);
+    TTF_Font *font_small = load_font("fonts/DejaVuSans.ttf", 24);
 
     if (!font_large || !font_medium || !font_small) {
         fprintf(stderr, "Failed to load fonts\n");
@@ -260,6 +260,10 @@ int main()
             }
         }
     }
+    if (connect_but_tex) SDL_DestroyTexture(connect_but_tex);
+    if (font_large) TTF_CloseFont(font_large);
+    if (font_medium) TTF_CloseFont(font_medium);
+    if (font_small) TTF_CloseFont(font_small);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

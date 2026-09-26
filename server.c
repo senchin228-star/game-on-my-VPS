@@ -1,5 +1,5 @@
 #include "config.h"
-#include "display.h"
+#include "server_utils.h"
 #include "protocol.h"
 
 #include <arpa/inet.h>
@@ -12,36 +12,6 @@
 #include <unistd.h>
 
 
-static double monotonic_seconds(void)
-{
-    struct timespec ts;
-
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-
-    return (double)ts.tv_sec +
-           (double)ts.tv_nsec / 1000000000.0;
-}
-
-static int same_player(const struct sockaddr_in *left,
-                       const struct sockaddr_in *right)
-{
-    return left->sin_family == right->sin_family &&
-           left->sin_port == right->sin_port &&
-           left->sin_addr.s_addr == right->sin_addr.s_addr;
-}
-
-static int send_server_message(int sock, const player_info *player,
-                               const server_message *message)
-{
-    ssize_t bytes_sent = sendto(sock, message, sizeof(*message), 0,
-                                (const struct sockaddr *)&player->player_addr,
-                                sizeof(player->player_addr));
-    if (bytes_sent != (ssize_t)sizeof(*message)) {
-        perror("Failed to send server message");
-        return 1;
-    }
-    return 0;
-}
 static void broadcast_lobby_status(session_info *session, int sock, int left_time)
 {
     server_message message = {
@@ -173,13 +143,15 @@ int player_join(session_info *session, int server_sock,
         .type = index >= 0 ? PLAYER_JOIN_ACCEPT : PLAYER_JOIN_DENIED,
         .id = index,
     };
-    session->players_client[index].color.R = rand() % 256;
-    session->players_client[index].color.G = rand() % 256;
-    session->players_client[index].color.B = rand() % 256;
-    session->players_client[index].cord.x = 10;
-    session->players_client[index].cord.y = -10 - index * 60;
-    session->players_client[index].ingame = 1;
-    memcpy(response.players, session->players_client, sizeof(response.players));
+    if (index >= 0){
+        session->players_client[index].color.R = rand() % 256;
+        session->players_client[index].color.G = rand() % 256;
+        session->players_client[index].color.B = rand() % 256;
+        session->players_client[index].cord.x = 10;
+        session->players_client[index].cord.y = -10 - index * 60;
+        session->players_client[index].ingame = 1;
+        memcpy(response.players, session->players_client, sizeof(response.players));
+    }
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
         (ssize_t)sizeof(response)) {
