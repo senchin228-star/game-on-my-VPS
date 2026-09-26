@@ -3,6 +3,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <stddef.h>
 
 #include "protocol.h"
@@ -27,6 +28,14 @@ SDL_Rect *player_cords_to_rects(const player_client_info *players,
  * rectangles array and the renderer.
  */
 void render_players(SDL_Rect *players_rects, player_client_info *players, size_t count, SDL_Renderer *renderer);
+
+/*
+ * Render player nicknames above their squares.
+ *
+ * This function displays the nickname of each player above their square.
+ * It expects valid pointers to rectangles, players array, font, and renderer.
+ */
+void render_player_nicknames(SDL_Rect *players_rects, player_client_info *players, size_t count, SDL_Renderer *renderer, TTF_Font *font, SDL_Color color);
 
 /**
  * * Create an SDL_Texture from an image file.
