@@ -6,7 +6,6 @@
 #define TIME_FOR_EXIT 60
 #define COUNTDOWN_SECONDS 5
 #include <arpa/inet.h>
-#include <SDL2/SDL.h>
 
 typedef enum {
     PLAYER_JOIN_REQUEST,
@@ -28,10 +27,10 @@ typedef enum {
 } MESSAGE_TYPE;
 
 typedef struct {
-    Uint8 R;
-    Uint8 G;
-    Uint8 B;
-    Uint8 A;
+    uint8_t R;
+    uint8_t G;
+    uint8_t B;
+    uint8_t A;
 } rgba_color;
 
 typedef struct {
