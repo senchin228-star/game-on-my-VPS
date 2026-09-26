@@ -1,6 +1,7 @@
 #include "config.h"
 #include "protocol.h"
 #include "sdl_utils.h"
+#include "text_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 #include <fcntl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 
 int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 {
@@ -56,10 +58,31 @@ int main()
         return 1;
     }
 
-    if (SDL_Init(SDL_INIT_VIDEO || SDL_INIT_EVENTS) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
         printf("Init SDL error: %s\n", SDL_GetError());
         return 1;
     }
+
+    if (TTF_Init() < 0) {
+        printf("Init TTF error: %s\n", TTF_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    // Load font
+    TTF_Font *font_large = load_font("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 48);
+    TTF_Font *font_medium = load_font("/usr/share/fonts/TTF/DejaVuSans.ttf", 32);
+    TTF_Font *font_small = load_font("/usr/share/fonts/TTF/DejaVuSans.ttf", 24);
+
+    if (!font_large || !font_medium || !font_small) {
+        fprintf(stderr, "Failed to load fonts\n");
+        TTF_Quit();
+        SDL_Quit();
+        return 1;
+    }
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Color yellow = {255, 255, 0, 255};
+
 
     if (IMG_Init(IMG_INIT_PNG) == 0){
         fprintf(stderr, "Error SDL2_image Initialization: %s\n", IMG_GetError());
@@ -140,6 +163,7 @@ int main()
         memcpy(all_players, resp.players, sizeof(all_players));
         player_cord my_cord = resp.players[id].cord;
 
+        int countdown_time = -1;
         while (lobby){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
@@ -148,20 +172,35 @@ int main()
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
-            int lobby_time = 0;
+
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_LOBBY_INFO){
-                memcpy(all_players, resp.players, sizeof(all_players));
-                lobby_time = resp.left_time;
+                countdown_time = resp.left_time;
+                memset(all_players, 0, sizeof(all_players));
+                memcpy(all_players, resp.players, sizeof(resp.players));
             }
 
-            if(bytes_received == (int)sizeof(resp) && resp.type == MSG_GAME_START){
+            else if(bytes_received == (int)sizeof(resp) && 
+                    resp.type == MSG_GAME_START){
                 lobby = 0; 
                 ingame = 1;
             }
-            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
+            // RENDER
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
+            render_text(renderer, font_large, "WAITING FOR PLAYERS", 100, 50, white);
+            char time_text[256] = {0};
+            if (countdown_time > 0){
+                snprintf(time_text, sizeof(time_text),
+                    "Game starts in: %d\n", countdown_time);
+                render_text(renderer, font_medium, time_text, 150, 350, yellow);
+            }
+            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+            if (players_rects != NULL) {
+                free(players_rects);
+                players_rects = NULL;
+            }
+
             SDL_RenderPresent(renderer);
         }
 
