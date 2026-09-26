@@ -147,8 +147,8 @@ int player_join(session_info *session, int server_sock,
         session->players_client[index].color.R = rand() % 256;
         session->players_client[index].color.G = rand() % 256;
         session->players_client[index].color.B = rand() % 256;
-        session->players_client[index].cord.x = 10;
-        session->players_client[index].cord.y = -10 - index * 60;
+        session->players_client[index].cord.x = 100;
+        session->players_client[index].cord.y = -150 - index * 100;
         session->players_client[index].ingame = 1;
         printf("Nick: %s\n", nick);
         snprintf(session->players_client[index].nickname,

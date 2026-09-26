@@ -204,6 +204,14 @@ int main(int argc, char *argv[])
             }
             players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+            render_player_nicknames(
+                players_rects,
+                all_players,
+                MAX_PLAYERS,
+                renderer,
+                font_small,
+                white
+            );
             if (players_rects != NULL) {
                 free(players_rects);
                 players_rects = NULL;
@@ -253,6 +261,14 @@ int main(int argc, char *argv[])
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+            render_player_nicknames(
+                players_rects,
+                all_players,
+                MAX_PLAYERS,
+                renderer,
+                font_small,
+                white
+            );
             SDL_RenderPresent(renderer);
 
             if (my_cord.x != previous_cord.x ||
