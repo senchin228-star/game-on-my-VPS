@@ -66,7 +66,6 @@ static int countdown(session_info *session, int server_sock)
         }
 
         if (elapsed >= COUNTDOWN_SECONDS) {
-            broadcast_game_start(session, server_sock);
             return 0;
         }
 
@@ -121,7 +120,41 @@ static int countdown(session_info *session, int server_sock)
                 perror("recvfrom during countdown");
                 continue;
             }
-            // HANDLE PLAYER SIGNALS
+           /* HANDLE PLAYER SIGNALS
+            *
+            * ID Determination
+            */
+            int id = -1;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (session->players[i].ready &&
+                    same_player(&session->players[i].player_addr, &client_addr)) {
+                    id = i;
+                    continue;
+                }
+            }
+            if (id < 0) continue; /* Ignore packets from unknown clients. */
+
+            
+            if (bytes_received == (ssize_t)sizeof(message) &&
+                message.type == PLAYER_LEAVE) {
+                int id = -1;
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (session->players[i].ready &&
+                        same_player(&session->players[i].player_addr, &client_addr)) {
+                        id = i;
+                        break;
+                    }
+                }
+                if (id >= 0) {
+                    session->ready_players--;
+                    memset(&session->players[id], 0, sizeof(session->players[id]));
+                    memset(&session->players_client[id], 0, sizeof(session->players_client[id]));
+                    left_time = 0; //Wait players
+                    broadcast_lobby_status(session, server_sock, left_time);
+                    return 1; // Player leave
+                }
+            continue;
+            }
         }
     }
 }
@@ -181,7 +214,7 @@ int player_join(session_info *session, int server_sock,
 
 int wait_players(session_info *session, int server_sock)
 {
-    while (session->ready_players < PLAYERS_TO_START) {
+    while (1) {
         player_message request;
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
@@ -195,12 +228,30 @@ int wait_players(session_info *session, int server_sock)
             continue;
         }
         if (bytes_received != (ssize_t)sizeof(request) ||
-            request.type != PLAYER_JOIN_REQUEST /*|| request.nickname == NULL*/) {
+            (request.type != PLAYER_JOIN_REQUEST &&
+             request.type != PLAYER_LEAVE)) {
+            continue;
+        }
+        if (request.type == PLAYER_LEAVE) {
+            int id = -1;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (session->players[i].ready &&
+                same_player(&session->players[i].player_addr, &client_addr)) {
+                id = i;
+                break;
+            }
+            }
+            if (id >= 0) {
+            session->ready_players--;
+            memset(&session->players[id], 0, sizeof(session->players[id]));
+            memset(&session->players_client[id], 0, sizeof(session->players_client[id]));
+            }
             continue;
         }
         player_join(session, server_sock, &client_addr, request.nickname);
+        if (session->ready_players >= PLAYERS_TO_START &&
+                countdown(session, server_sock) == 0) break;
     }
-    countdown(session, server_sock);
     broadcast_game_start(session, server_sock);
     return 0;
 }

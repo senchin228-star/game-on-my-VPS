@@ -15,6 +15,20 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 
+int leave(int sock, struct sockaddr_in *server_addr)
+{
+    player_message mes = {
+        .type = PLAYER_LEAVE,
+    };
+    int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
+            (struct sockaddr *)server_addr, sizeof(*server_addr));
+    if (bytes_sent != (int)sizeof(mes)){
+        perror("Failed to send the mes\n");
+        return 1;
+    }
+    return 0;
+}
+
 int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 {
     player_message mes = {
@@ -135,6 +149,7 @@ int main(int argc, char *argv[])
         while(menu){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
+                    if (players_rects != NULL) free(players_rects);
                     running = 0;
                     menu = 0;
                     break;
@@ -175,8 +190,14 @@ int main(int argc, char *argv[])
         while (lobby){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
+                    leave(sock, &server_addr);
                     lobby = 0;
-                    menu = 1;
+                    menu = 0;
+                    running = 0;
+                    if (players_rects != NULL) {
+                        free(players_rects);
+                        players_rects = NULL;
+                    }
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
@@ -226,10 +247,20 @@ int main(int argc, char *argv[])
         int frameTime;
 
         while(ingame){
+            if (!running) break;
             frameStart = SDL_GetTicks();
             while(SDL_PollEvent(&event)){
                 if (event.type  == SDL_QUIT){
+                    if (leave(sock, &server_addr) != 0) {
+                        fprintf(stderr, "leave failed\n");
+                    }
+                    if (players_rects != NULL) {
+                        free(players_rects);
+                        players_rects = NULL;
+                    }
                     running = 0;
+                    menu = 0;
+                    lobby = 0;
                     ingame = 0;
                     break;
                 }
@@ -283,6 +314,7 @@ int main(int argc, char *argv[])
                 SDL_Delay(FRAME_DELAY - frameTime);
             }
         }
+        if (!running) break;
     }
     if (connect_but_tex) SDL_DestroyTexture(connect_but_tex);
     if (font_large) TTF_CloseFont(font_large);
