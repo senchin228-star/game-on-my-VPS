@@ -6,6 +6,7 @@
 
 typedef enum {
     PLAYER_JOIN_REQUEST,
+    PLAYER_LEAVE,
     NO_KEY,
     UP_KEY,
     DOWN_KEY,
