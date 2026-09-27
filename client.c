@@ -261,7 +261,6 @@ int main(int argc, char *argv[])
         const int FRAME_DELAY = 1000 / FPS;
         Uint32 frameStart;
         int frameTime;
-        int score = 0;
         SDL_Rect *apple_rect = NULL;
 
         while(ingame){
@@ -287,9 +286,7 @@ int main(int argc, char *argv[])
             if (bytes_received == (int)sizeof(resp)){
                 if (resp.type == MSG_CLIENTS_INFO) {
                     for (int i = 0; i < MAX_PLAYERS; i++) {
-                        if (i != id) {
-                            all_players[i] = resp.players[i];
-                        }
+                        all_players[i] = resp.players[i];
                     }
                     apple_cord = resp.apple_cord;
                     all_players[id].cord = my_cord;
@@ -304,7 +301,6 @@ int main(int argc, char *argv[])
                     // You may want to store the apple position in a global variable or a struct
                     apple_cord.x = resp.apple_cord.x;
                     apple_cord.y = resp.apple_cord.y;
-                    score += 1; // Increment score when apple is collected
                 }
             }
             int elapsed_time = (int)((SDL_GetTicks() - game_start_ticks) / 1000);
@@ -352,6 +348,17 @@ int main(int argc, char *argv[])
                 snprintf(time_text, sizeof(time_text),
                     "Time left: %d", remaining_time);
                 render_text(renderer, font_medium, time_text, 20, 20, yellow);
+            render_text(renderer, font_medium, "SCORES", 620, 20, white);
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (!all_players[i].ingame || all_players[i].nickname[0] == '\0') {
+                    continue;
+                }
+
+                char score_text[192];
+                snprintf(score_text, sizeof(score_text), "%s: %d",
+                    all_players[i].nickname, all_players[i].score);
+                render_text(renderer, font_small, score_text, 570, 55 + i * 30, white);
+            }
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
             render_player_nicknames(
                 players_rects,
