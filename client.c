@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
         player_client_info all_players[MAX_PLAYERS];
         memcpy(all_players, resp.players, sizeof(all_players));
         player_cord my_cord = resp.players[id].cord;
+        Uint32 game_start_ticks = 0;
 
         int countdown_time = -1;
         while (lobby){
@@ -210,6 +211,7 @@ int main(int argc, char *argv[])
 
             else if(bytes_received == (int)sizeof(resp) && 
                     resp.type == MSG_GAME_START){
+                game_start_ticks = SDL_GetTicks();
                 lobby = 0; 
                 ingame = 1;
             }
@@ -280,6 +282,9 @@ int main(int argc, char *argv[])
                     ingame = 0;
                 }
             }
+            int elapsed_time = (int)((SDL_GetTicks() - game_start_ticks) / 1000);
+            int remaining_time = TIME_FOR_EXIT - elapsed_time;
+            if (remaining_time < 0) remaining_time = 0;
             player_cord previous_cord = my_cord;
 
             const Uint8 *state = SDL_GetKeyboardState(NULL);
@@ -291,6 +296,10 @@ int main(int argc, char *argv[])
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
+                char time_text[64];
+                snprintf(time_text, sizeof(time_text),
+                    "Time left: %d", remaining_time);
+                render_text(renderer, font_medium, time_text, 20, 20, yellow);
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
             render_player_nicknames(
                 players_rects,
