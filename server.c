@@ -286,6 +286,18 @@ int move_handle(session_info *session, int sock)
     if (id < 0) return 1; /* Ignore packets from unknown clients. */
 
     session->players_client[id].cord = message.cord;
+    if (session->players_client[id].cord.x < 0) {
+        session->players_client[id].cord.x = 0;
+    }
+    if (session->players_client[id].cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {
+        session->players_client[id].cord.x = WINDOW_WIDTH - PLAYER_WIDTH;
+    }
+    if (session->players_client[id].cord.y > 0) {
+        session->players_client[id].cord.y = 0;
+    }
+    if (session->players_client[id].cord.y < -(WINDOW_HEIGHT - PLAYER_HEIGHT)) {
+        session->players_client[id].cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
+    }
     print_player_pos(session, id);
 
     server_message response = {

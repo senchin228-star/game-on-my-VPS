@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     SDL_Window* window = SDL_CreateWindow(
         "game-on-my-VPS",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        800, 600,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
         SDL_WINDOW_SHOWN
     );
 
@@ -225,7 +225,8 @@ int main(int argc, char *argv[])
                     "Game starts in: %d\n", countdown_time);
                 render_text(renderer, font_medium, time_text, 150, 350, yellow);
             }
-            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
+            players_rects = player_cords_to_rects(
+                all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
             render_players(players_rects, all_players, MAX_PLAYERS, renderer);
             render_player_nicknames(
                 players_rects,
@@ -292,7 +293,19 @@ int main(int argc, char *argv[])
             if (state[SDL_SCANCODE_RIGHT]) my_cord.x += PLAYER_SPEED;
             if (state[SDL_SCANCODE_UP])    my_cord.y += PLAYER_SPEED;
             if (state[SDL_SCANCODE_DOWN])  my_cord.y -= PLAYER_SPEED;
-            players_rects = player_cords_to_rects(all_players, MAX_PLAYERS, 50, 50);
+
+            if (my_cord.x < 0) my_cord.x = 0;
+            if (my_cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {
+                my_cord.x = WINDOW_WIDTH - PLAYER_WIDTH;
+            }
+            if (my_cord.y > 0) my_cord.y = 0;
+            if (my_cord.y < -(WINDOW_HEIGHT - PLAYER_HEIGHT)) {
+                my_cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
+            }
+
+            all_players[id].cord = my_cord;
+            players_rects = player_cords_to_rects(
+                all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);

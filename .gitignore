@@ -2,3 +2,4 @@ config.h
 server
 client
 supp.log
+.gitignore
