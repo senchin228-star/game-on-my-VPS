@@ -2,6 +2,35 @@
 
 #include <stdlib.h>
 
+SDL_Rect *apple_cords_to_rects(const player_cord *apple_cords,
+                                int width,
+                                int height)
+{
+    if (apple_cords == NULL) {
+        return NULL;
+    }
+
+    SDL_Rect *apple_rect = malloc(sizeof(*apple_rect));
+    if (apple_rect == NULL) {
+        return NULL;
+    }
+
+    apple_rect->x = apple_cords[0].x;
+    apple_rect->y = apple_cords[0].y * -1;
+    apple_rect->w = width;
+    apple_rect->h = height;
+
+    return apple_rect;
+}
+void render_apple(SDL_Rect *apple_rect, SDL_Renderer *renderer)
+{
+    if (apple_rect == NULL || renderer == NULL) {
+        return;
+    }
+
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // red
+    SDL_RenderFillRect(renderer, apple_rect);
+}
 SDL_Rect *player_cords_to_rects(const player_client_info *players,
                                 size_t count,
                                 int width,

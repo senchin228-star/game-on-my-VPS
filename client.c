@@ -29,6 +29,17 @@ int leave(int sock, struct sockaddr_in *server_addr)
     return 0;
 }
 
+int send_message(int sock, struct sockaddr_in *server_addr, player_message *mes)
+{
+    int bytes_sent = sendto(sock, mes, sizeof(*mes), 0,
+            (struct sockaddr *)server_addr, sizeof(*server_addr));
+    if (bytes_sent != (int)sizeof(*mes)){
+        perror("Failed to send the mes\n");
+        return 1;
+    }
+    return 0;
+}
+
 int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
 {
     player_message mes = {
@@ -185,6 +196,7 @@ int main(int argc, char *argv[])
         player_client_info all_players[MAX_PLAYERS];
         memcpy(all_players, resp.players, sizeof(all_players));
         player_cord my_cord = resp.players[id].cord;
+        player_cord apple_cord = {0, 0};
         Uint32 game_start_ticks = 0;
 
         int countdown_time = -1;
@@ -211,6 +223,7 @@ int main(int argc, char *argv[])
 
             else if(bytes_received == (int)sizeof(resp) && 
                     resp.type == MSG_GAME_START){
+                apple_cord = resp.apple_cord;
                 game_start_ticks = SDL_GetTicks();
                 lobby = 0; 
                 ingame = 1;
@@ -248,6 +261,8 @@ int main(int argc, char *argv[])
         const int FRAME_DELAY = 1000 / FPS;
         Uint32 frameStart;
         int frameTime;
+        int score = 0;
+        SDL_Rect *apple_rect = NULL;
 
         while(ingame){
             if (!running) break;
@@ -276,11 +291,20 @@ int main(int argc, char *argv[])
                             all_players[i] = resp.players[i];
                         }
                     }
+                    apple_cord = resp.apple_cord;
                     all_players[id].cord = my_cord;
                 }
                 else if (resp.type == MSG_GAME_OVER){
                     printf("Game over\n");
                     ingame = 0;
+                }
+                else if (resp.type == MSG_GET_APPLE){
+                    printf("New apple cord: (%d, %d)\n", resp.apple_cord.x, resp.apple_cord.y);
+                    // Update the apple position in the game state
+                    // You may want to store the apple position in a global variable or a struct
+                    apple_cord.x = resp.apple_cord.x;
+                    apple_cord.y = resp.apple_cord.y;
+                    score += 1; // Increment score when apple is collected
                 }
             }
             int elapsed_time = (int)((SDL_GetTicks() - game_start_ticks) / 1000);
@@ -303,9 +327,24 @@ int main(int argc, char *argv[])
                 my_cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
             }
 
+            if (my_cord.x < apple_cord.x + PLAYER_WIDTH &&
+                my_cord.x + PLAYER_WIDTH > apple_cord.x &&
+                my_cord.y < apple_cord.y + PLAYER_HEIGHT &&
+                my_cord.y + PLAYER_HEIGHT > apple_cord.y) {
+                printf("You got the apple!\n");
+                // Handle the event of getting the apple, e.g., increase score
+                player_message get_point_msg = {
+                    .type = GET_POINT,
+                    .cord = my_cord
+                };
+                send_message(sock, &server_addr, &get_point_msg);
+            }
+
             all_players[id].cord = my_cord;
             players_rects = player_cords_to_rects(
                 all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
+            apple_rect = apple_cords_to_rects(
+                &apple_cord, PLAYER_WIDTH, PLAYER_HEIGHT);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
@@ -322,6 +361,9 @@ int main(int argc, char *argv[])
                 font_small,
                 white
             );
+            if (apple_rect) {
+                render_apple(apple_rect, renderer);
+            }
             SDL_RenderPresent(renderer);
 
             if (my_cord.x != previous_cord.x ||
@@ -330,6 +372,7 @@ int main(int argc, char *argv[])
             }
 
             if (players_rects != NULL ) free(players_rects);
+            if (apple_rect != NULL) free(apple_rect);
 
             frameTime = SDL_GetTicks() - frameStart;
             if (FRAME_DELAY > frameTime) {

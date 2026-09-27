@@ -12,6 +12,7 @@ typedef enum {
     DOWN_KEY,
     LEFT_KEY,
     RIGHT_KEY,
+    GET_POINT,
     SEND_CORD
 } PLAYER_SIGNALS;
 
@@ -21,7 +22,8 @@ typedef enum {
     MSG_CLIENTS_INFO,
     MSG_GAME_OVER,
     MSG_GAME_START,
-    MSG_LOBBY_INFO
+    MSG_LOBBY_INFO,
+    MSG_GET_APPLE
 } MESSAGE_TYPE;
 
 typedef struct {
@@ -41,6 +43,7 @@ typedef struct {
     rgba_color color;
     int id;
     int ingame;
+    int score;
     char nickname[128];
 } player_client_info;
 
@@ -48,6 +51,7 @@ typedef struct {
 typedef struct {
     MESSAGE_TYPE type;
     player_client_info players[MAX_PLAYERS];
+    player_cord apple_cord;
     int players_in_lobby;
     int left_time;
     int id;
@@ -67,6 +71,7 @@ typedef struct {
 
 typedef struct {
     int session_number;
+    player_cord apple_cord;
     player_info players[MAX_PLAYERS];
     player_client_info players_client[MAX_PLAYERS];
     int ready_players;

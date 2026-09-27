@@ -32,7 +32,8 @@ static void broadcast_game_start(session_info *session, int sock)
 {
     server_message message = {
         .type = MSG_GAME_START,
-        .left_time = 0
+        .left_time = 0,
+        .apple_cord = session->apple_cord
     };
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -252,13 +253,15 @@ int wait_players(session_info *session, int server_sock)
         if (session->ready_players >= PLAYERS_TO_START &&
                 countdown(session, server_sock) == 0) break;
     }
+    session->apple_cord.x = rand() % (WINDOW_WIDTH - PLAYER_WIDTH);
+    session->apple_cord.y = -(rand() % (WINDOW_HEIGHT - PLAYER_HEIGHT));
     broadcast_game_start(session, server_sock);
     return 0;
 }
 
 /* Handle the new player_message protocol: the client sends its complete
  * position in player_message.cord instead of a key enum. */
-int move_handle(session_info *session, int sock)
+int action_handle(session_info *session, int sock)
 {
     player_message message;
     struct sockaddr_in client_addr;
@@ -271,7 +274,7 @@ int move_handle(session_info *session, int sock)
         if (errno != EAGAIN && errno != EWOULDBLOCK) perror("receive move");
         return 1;
     }
-    if (bytes_received != (ssize_t)sizeof(message) || message.type != SEND_CORD) {
+    if (bytes_received != (ssize_t)sizeof(message)) {
         return 1;
     }
 
@@ -285,24 +288,43 @@ int move_handle(session_info *session, int sock)
     }
     if (id < 0) return 1; /* Ignore packets from unknown clients. */
 
-    session->players_client[id].cord = message.cord;
-    if (session->players_client[id].cord.x < 0) {
-        session->players_client[id].cord.x = 0;
+    if (message.type == SEND_CORD) {
+        session->players_client[id].cord = message.cord;
+        if (session->players_client[id].cord.x < 0) {
+            session->players_client[id].cord.x = 0;
+        }
+        if (session->players_client[id].cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {
+            session->players_client[id].cord.x = WINDOW_WIDTH - PLAYER_WIDTH;
+        }
+        if (session->players_client[id].cord.y > 0) {
+            session->players_client[id].cord.y = 0;
+        }
+        if (session->players_client[id].cord.y < -(WINDOW_HEIGHT - PLAYER_HEIGHT)) {
+            session->players_client[id].cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
+        }
     }
-    if (session->players_client[id].cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {
-        session->players_client[id].cord.x = WINDOW_WIDTH - PLAYER_WIDTH;
+
+    if (message.type == GET_POINT && session->players_client[id].cord.x < session->apple_cord.x + PLAYER_WIDTH &&
+            session->players_client[id].cord.x + PLAYER_WIDTH > session->apple_cord.x &&
+            session->players_client[id].cord.y < session->apple_cord.y + PLAYER_HEIGHT &&
+            session->players_client[id].cord.y + PLAYER_HEIGHT > session->apple_cord.y) {
+
+        session->players_client[id].score += 1;
+        printf("Player %d got the apple!\n", id);
+        printf("Player %d's score: %d\n", id, session->players_client[id].score);
+        session->apple_cord.x = rand() % (WINDOW_WIDTH - PLAYER_WIDTH);
+        session->apple_cord.y = -(rand() % (WINDOW_HEIGHT - PLAYER_HEIGHT));
+        server_message apple_message = {
+            .type = MSG_GET_APPLE,
+            .apple_cord = session->apple_cord
+        };
+        send_server_message(sock, &session->players[id], &apple_message);
     }
-    if (session->players_client[id].cord.y > 0) {
-        session->players_client[id].cord.y = 0;
-    }
-    if (session->players_client[id].cord.y < -(WINDOW_HEIGHT - PLAYER_HEIGHT)) {
-        session->players_client[id].cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
-    }
-    print_player_pos(session, id);
 
     server_message response = {
         .type = MSG_CLIENTS_INFO,
-        .left_time = session->session_time
+        .left_time = session->session_time,
+        .apple_cord = session->apple_cord
     };
     memcpy(response.players, session->players_client, sizeof(response.players));
 
@@ -351,18 +373,16 @@ void run_game(session_info *session, int server_sock, size_t start_time)
             break;
         }
         if (result > 0 && FD_ISSET(server_sock, &readfd)) {
-            move_handle(session, server_sock);
+            action_handle(session, server_sock);
         }
     }
 }
 int main(void)
 {
     srand(time(NULL)); // for random color
-    session_info session = {
-        .session_number = 1,
-        .ready_players = 0,
-        .session_time = 0
-    };
+    session_info session; 
+    memset(&session, 0, sizeof(session));
+    session.session_number = 1;
 
     int server_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock < 0) {

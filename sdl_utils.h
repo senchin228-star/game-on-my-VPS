@@ -9,12 +9,32 @@
 #include "protocol.h"
 
 /*
+ * Convert apple coordinates to SDL rectangles.
+ *
+ * The returned array contains `count` rectangles and must be freed with
+ * free() by the caller. NULL is returned when cords is NULL, count is zero,
+ * or the allocation fails.
+ */
+
+SDL_Rect *apple_cords_to_rects(const player_cord *apple_cords,
+                                int width,
+                                int height);
+/*
+ * Render apple rectangles onto the screen.
+ *
+ * This function draws filled rectangles for each apple using the
+ * provided SDL_Renderer. It expects valid pointers to both the
+ * rectangles array and the renderer.
+ */
+void render_apple(SDL_Rect *apple_rect, SDL_Renderer *renderer);
+/*
  * Convert player coordinates to SDL rectangles.
  *
  * The returned array contains `count` rectangles and must be freed with
  * free() by the caller. NULL is returned when cords is NULL, count is zero,
  * or the allocation fails.
  */
+
 SDL_Rect *player_cords_to_rects(const player_client_info *players,
                                 size_t count,
                                 int width,
