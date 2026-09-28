@@ -346,6 +346,7 @@ void session_end(session_info *session, int sock)
             .type = MSG_GAME_OVER,
             .left_time = session->session_time
         };
+        memcpy(message.players, session->players_client, sizeof(message.players));
         send_server_message(sock, &session->players[i], &message);
     }
 

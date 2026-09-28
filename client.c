@@ -262,6 +262,7 @@ int main(int argc, char *argv[])
         Uint32 frameStart;
         int frameTime;
         SDL_Rect *apple_rect = NULL;
+        int game_finished = 0;
 
         while(ingame){
             if (!running) break;
@@ -293,7 +294,9 @@ int main(int argc, char *argv[])
                 }
                 else if (resp.type == MSG_GAME_OVER){
                     printf("Game over\n");
+                    memcpy(all_players, resp.players, sizeof(all_players));
                     ingame = 0;
+                    game_finished = 1;
                 }
                 else if (resp.type == MSG_GET_APPLE){
                     printf("New apple cord: (%d, %d)\n", resp.apple_cord.x, resp.apple_cord.y);
@@ -387,6 +390,64 @@ int main(int argc, char *argv[])
             }
         }
         if (!running) break;
+        while (game_finished && running) {
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_QUIT) {
+                    running = 0;
+                    break;
+                }
+                if (event.type == SDL_KEYDOWN || event.type == SDL_MOUSEBUTTONDOWN) {
+                    game_finished = 0;
+                    break;
+                }
+            }
+            if (!game_finished || !running) break;
+
+            int highest_score = -1;
+            int winner_id = -1;
+            int tied = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (!all_players[i].ingame) continue;
+                if (all_players[i].score > highest_score) {
+                    highest_score = all_players[i].score;
+                    winner_id = i;
+                    tied = 0;
+                } else if (all_players[i].score == highest_score) {
+                    tied = 1;
+                }
+            }
+
+            SDL_SetRenderDrawColor(renderer, 18, 35, 48, 255);
+            SDL_RenderClear(renderer);
+            render_text(renderer, font_large, "GAME OVER", 250, 65, white);
+            if (winner_id >= 0 && tied) {
+                render_text(renderer, font_medium, "DRAW", 330, 145, yellow);
+            } else if (winner_id >= 0) {
+                char winner_text[160];
+                snprintf(winner_text, sizeof(winner_text), "Winner: %s",
+                    all_players[winner_id].nickname);
+                render_text(renderer, font_medium, winner_text, 190, 145, yellow);
+            } else {
+                render_text(renderer, font_medium, "No winner", 300, 145, yellow);
+            }
+
+            render_text(renderer, font_medium, "FINAL SCORES", 285, 230, white);
+            int score_line = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (!all_players[i].ingame || all_players[i].nickname[0] == '\0') {
+                    continue;
+                }
+                char score_text[192];
+                snprintf(score_text, sizeof(score_text), "%s: %d",
+                    all_players[i].nickname, all_players[i].score);
+                render_text(renderer, font_small, score_text, 280,
+                    285 + score_line * 35, white);
+                score_line++;
+            }
+            render_text(renderer, font_small, "Press any key to continue", 240, 520, yellow);
+            SDL_RenderPresent(renderer);
+            SDL_Delay(16);
+        }
     }
     if (connect_but_tex) SDL_DestroyTexture(connect_but_tex);
     if (font_large) TTF_CloseFont(font_large);
