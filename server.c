@@ -6,8 +6,10 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/select.h>
+#include <sys/random.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -37,13 +39,66 @@ static void broadcast_game_start(session_info *session, int sock)
     };
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (session->players[i].ready) {
-            send_server_message(sock, &session->players[i], &message);
+        if (!session->players[i].ready) continue;
+        if (create_token(&session->players[i].reconnect_token) != 0) {
+            perror("Failed to create reconnect token");
+            continue;
         }
+        message.reconnect_token = session->players[i].reconnect_token;
+        send_server_message(sock, &session->players[i], &message);
     }
 }
 
-static int countdown(session_info *session, int server_sock)
+static int find_token_player(const session_info *session, uint64_t token)
+{
+    if (session == NULL || token == 0) return -1;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (session->players[i].ready &&
+            session->players[i].reconnect_token == token) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void answer_reconnect(session_info *active_session,
+                             const session_info *finished_session,
+                             int sock,
+                             const struct sockaddr_in *client_addr,
+                             uint64_t token)
+{
+    server_message response = {0};
+    player_info recipient = { .player_addr = *client_addr };
+    int id = find_token_player(active_session, token);
+
+    if (id >= 0 && active_session->session_time < TIME_FOR_EXIT) {
+        active_session->players[id].player_addr = *client_addr;
+        response.type = MSG_RECONNECT_ACCEPT;
+        response.id = id;
+        response.left_time = active_session->session_time;
+        response.apple_cord = active_session->apple_cord;
+        response.reconnect_token = token;
+        memcpy(response.players, active_session->players_client,
+               sizeof(response.players));
+    } else {
+        id = find_token_player(finished_session, token);
+        if (id >= 0) {
+            response.type = MSG_GAME_OVER;
+            response.id = id;
+            response.left_time = finished_session->session_time;
+            memcpy(response.players, finished_session->players_client,
+                   sizeof(response.players));
+        } else {
+            response.type = MSG_RECONNECT_DENIED;
+        }
+    }
+
+    send_server_message(sock, &recipient, &response);
+}
+
+static int countdown(session_info *session,
+                     const session_info *finished_session,
+                     int server_sock)
 {
     double start_time = monotonic_seconds();
     int previous_left_time = -1;
@@ -121,6 +176,12 @@ static int countdown(session_info *session, int server_sock)
                 perror("recvfrom during countdown");
                 continue;
             }
+            if (bytes_received == (ssize_t)sizeof(message) &&
+                message.type == PLAYER_RECONNECT_REQUEST) {
+                answer_reconnect(NULL, finished_session, server_sock,
+                                 &client_addr, message.reconnect_token);
+                continue;
+            }
            /* HANDLE PLAYER SIGNALS
             *
             * ID Determination
@@ -138,14 +199,6 @@ static int countdown(session_info *session, int server_sock)
             
             if (bytes_received == (ssize_t)sizeof(message) &&
                 message.type == PLAYER_LEAVE) {
-                int id = -1;
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (session->players[i].ready &&
-                        same_player(&session->players[i].player_addr, &client_addr)) {
-                        id = i;
-                        break;
-                    }
-                }
                 if (id >= 0) {
                     session->ready_players--;
                     memset(&session->players[id], 0, sizeof(session->players[id]));
@@ -155,6 +208,10 @@ static int countdown(session_info *session, int server_sock)
                     return 1; // Player leave
                 }
             continue;
+            }
+            if (bytes_received == (ssize_t)sizeof(message) &&
+                message.type == PLAYER_LEAVE) {
+                    session->players[id].ready = 0;
             }
         }
     }
@@ -213,7 +270,9 @@ int player_join(session_info *session, int server_sock,
     return 0;
 }
 
-int wait_players(session_info *session, int server_sock)
+int wait_players(session_info *session,
+                 const session_info *finished_session,
+                 int server_sock)
 {
     while (1) {
         player_message request;
@@ -228,9 +287,15 @@ int wait_players(session_info *session, int server_sock)
             perror("receive join request");
             continue;
         }
-        if (bytes_received != (ssize_t)sizeof(request) ||
-            (request.type != PLAYER_JOIN_REQUEST &&
-             request.type != PLAYER_LEAVE)) {
+        if (bytes_received != (ssize_t)sizeof(request)) {
+            continue;
+        }
+        if (request.type == PLAYER_RECONNECT_REQUEST) {
+            answer_reconnect(NULL, finished_session, server_sock,
+                             &client_addr, request.reconnect_token);
+            continue;
+        }
+        if (request.type != PLAYER_JOIN_REQUEST && request.type != PLAYER_LEAVE) {
             continue;
         }
         if (request.type == PLAYER_LEAVE) {
@@ -251,7 +316,7 @@ int wait_players(session_info *session, int server_sock)
         }
         player_join(session, server_sock, &client_addr, request.nickname);
         if (session->ready_players >= PLAYERS_TO_START &&
-                countdown(session, server_sock) == 0) break;
+            countdown(session, finished_session, server_sock) == 0) break;
     }
     session->apple_cord.x = rand() % (WINDOW_WIDTH - PLAYER_WIDTH);
     session->apple_cord.y = -(rand() % (WINDOW_HEIGHT - PLAYER_HEIGHT));
@@ -261,7 +326,9 @@ int wait_players(session_info *session, int server_sock)
 
 /* Handle the new player_message protocol: the client sends its complete
  * position in player_message.cord instead of a key enum. */
-int action_handle(session_info *session, int sock)
+int action_handle(session_info *session,
+                  const session_info *finished_session,
+                  int sock)
 {
     player_message message;
     struct sockaddr_in client_addr;
@@ -276,6 +343,12 @@ int action_handle(session_info *session, int sock)
     }
     if (bytes_received != (ssize_t)sizeof(message)) {
         return 1;
+    }
+
+    if (message.type == PLAYER_RECONNECT_REQUEST) {
+        answer_reconnect(session, finished_session, sock, &client_addr,
+                         message.reconnect_token);
+        return 0;
     }
 
     int id = -1;
@@ -337,9 +410,10 @@ int action_handle(session_info *session, int sock)
 }
 
 
-void session_end(session_info *session, int sock)
+void session_end(session_info *session, int sock, session_info *finished_session)
 {
     session->session_number++;
+    *finished_session = *session;
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!session->players[i].ready) continue;
         server_message message = {
@@ -355,7 +429,10 @@ void session_end(session_info *session, int sock)
     session->ready_players = 0;
     session->session_time = 0;
 }
-void run_game(session_info *session, int server_sock, size_t start_time)
+void run_game(session_info *session,
+              const session_info *finished_session,
+              int server_sock,
+              size_t start_time)
 {
     while(1){
         time_t now = time(NULL);
@@ -374,7 +451,7 @@ void run_game(session_info *session, int server_sock, size_t start_time)
             break;
         }
         if (result > 0 && FD_ISSET(server_sock, &readfd)) {
-            action_handle(session, server_sock);
+            action_handle(session, finished_session, server_sock);
         }
     }
 }
@@ -384,6 +461,8 @@ int main(void)
     session_info session; 
     memset(&session, 0, sizeof(session));
     session.session_number = 1;
+    session_info finished_session;
+    memset(&finished_session, 0, sizeof(finished_session));
 
     int server_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (server_sock < 0) {
@@ -405,14 +484,14 @@ int main(void)
     printf("Successfully bound\n");
 
     while (1) {
-        wait_players(&session, server_sock);
+        wait_players(&session, &finished_session, server_sock);
         printf("GAME START\n");
 
         time_t start_time = time(NULL); //for random color
-        run_game(&session, server_sock, start_time);
+        run_game(&session, &finished_session, server_sock, start_time);
 
         printf("game ended\n");
-        session_end(&session, server_sock);
+        session_end(&session, server_sock, &finished_session);
         printf("Session number: %d\nWait new player...\n", session.session_number);
     }
 

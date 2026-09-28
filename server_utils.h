@@ -3,6 +3,7 @@
 
 #include "protocol.h"
 
+int create_token(uint64_t *token);
 int send_server_message(int sock, const player_info *player,
                                const server_message *message);
 int same_player(const struct sockaddr_in *left,

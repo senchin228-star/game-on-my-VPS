@@ -3,6 +3,31 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/random.h>
+#include <stdint.h>
+#include <errno.h>
+
+int create_token(uint64_t *token)
+{
+    size_t received = 0;
+
+    while (received < sizeof(*token)) {
+        ssize_t count = getrandom(
+            (char *)token + received,
+            sizeof(*token) - received,
+            0
+        );
+
+        if (count < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+
+        received += (size_t)count;
+    }
+
+    return 0;
+}
 double monotonic_seconds(void)
 {
     struct timespec ts;

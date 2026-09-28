@@ -4,6 +4,7 @@
 #include "text_utils.h"
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -11,6 +12,7 @@
 #include <termios.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
@@ -54,6 +56,52 @@ int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
     }
     return 0;
 }
+
+static int save_reconnect_token(uint64_t token)
+{
+    int fd = open("client_runtime.conf", O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) return 1;
+    if (fchmod(fd, 0600) < 0) {
+        close(fd);
+        return 1;
+    }
+
+    FILE *config = fdopen(fd, "w");
+    if (config == NULL) {
+        close(fd);
+        return 1;
+    }
+
+    int write_failed = fprintf(config, "reconnect_token=%" PRIu64 "\n", token) < 0;
+    if (fflush(config) != 0) write_failed = 1;
+    if (fclose(config) != 0) write_failed = 1;
+    return write_failed;
+}
+
+static uint64_t load_reconnect_token(void)
+{
+    FILE *config = fopen("client_runtime.conf", "r");
+    if (config == NULL) return 0;
+
+    uint64_t token = 0;
+    if (fscanf(config, "reconnect_token=%" SCNu64, &token) != 1) {
+        token = 0;
+    }
+    fclose(config);
+    return token;
+}
+
+static int reconnect_request(int sock,
+                             struct sockaddr_in *server_addr,
+                             uint64_t token)
+{
+    player_message request = {
+        .type = PLAYER_RECONNECT_REQUEST,
+        .reconnect_token = token
+    };
+    return send_message(sock, server_addr, &request);
+}
+
 int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
 {
     player_message request = {
@@ -157,6 +205,9 @@ int main(int argc, char *argv[])
         int menu = 1;
         int ingame = 0;
         int lobby = 0;
+        int reconnecting = 0;
+        int reconnect_finished = 0;
+        uint64_t saved_token = load_reconnect_token();
         while(menu){
             while (SDL_PollEvent(&event)){
                 if (event.type == SDL_QUIT){
@@ -169,7 +220,10 @@ int main(int argc, char *argv[])
                     if (event.button.button == SDL_BUTTON_LEFT){
                         SDL_Point mouse_pos = {.x = event.button.x, .y = event.button.y};
                         if (SDL_PointInRect(&mouse_pos, &join_button)){
-                            if (join_request(sock, &server_addr, argv[1]) != 0) return 1;
+                            int sent = saved_token != 0
+                                ? reconnect_request(sock, &server_addr, saved_token)
+                                : join_request(sock, &server_addr, argv[1]);
+                            if (sent != 0) return 1;
                         }
                     }
                 }
@@ -179,6 +233,21 @@ int main(int argc, char *argv[])
                 resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
                 menu = 0;
                 lobby = 1;
+            } else if (bytes_received == (int)sizeof(resp) &&
+                       resp.type == MSG_RECONNECT_ACCEPT) {
+                reconnecting = 1;
+                menu = 0;
+                ingame = 1;
+            } else if (bytes_received == (int)sizeof(resp) &&
+                       resp.type == MSG_GAME_OVER) {
+                reconnect_finished = 1;
+                menu = 0;
+                unlink("client_runtime.conf");
+            } else if (bytes_received == (int)sizeof(resp) &&
+                       resp.type == MSG_RECONNECT_DENIED) {
+                unlink("client_runtime.conf");
+                saved_token = 0;
+                if (join_request(sock, &server_addr, argv[1]) != 0) return 1;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
@@ -198,6 +267,12 @@ int main(int argc, char *argv[])
         player_cord my_cord = resp.players[id].cord;
         player_cord apple_cord = {0, 0};
         Uint32 game_start_ticks = 0;
+        uint64_t token = 0;
+        if (reconnecting) {
+            apple_cord = resp.apple_cord;
+            game_start_ticks = SDL_GetTicks() - (Uint32)resp.left_time * 1000;
+            token = resp.reconnect_token;
+        }
 
         int countdown_time = -1;
         while (lobby){
@@ -227,6 +302,10 @@ int main(int argc, char *argv[])
                 game_start_ticks = SDL_GetTicks();
                 lobby = 0; 
                 ingame = 1;
+                token = resp.reconnect_token;
+                if (save_reconnect_token(token) != 0) {
+                    perror("Failed to save reconnect token");
+                }
             }
             // RENDER
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
@@ -262,7 +341,7 @@ int main(int argc, char *argv[])
         Uint32 frameStart;
         int frameTime;
         SDL_Rect *apple_rect = NULL;
-        int game_finished = 0;
+        int game_finished = reconnect_finished;
 
         while(ingame){
             if (!running) break;
@@ -297,6 +376,7 @@ int main(int argc, char *argv[])
                     memcpy(all_players, resp.players, sizeof(all_players));
                     ingame = 0;
                     game_finished = 1;
+                    unlink("client_runtime.conf");
                 }
                 else if (resp.type == MSG_GET_APPLE){
                     printf("New apple cord: (%d, %d)\n", resp.apple_cord.x, resp.apple_cord.y);

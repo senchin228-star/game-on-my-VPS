@@ -6,6 +6,7 @@
 
 typedef enum {
     PLAYER_JOIN_REQUEST,
+    PLAYER_RECONNECT_REQUEST,
     PLAYER_LEAVE,
     NO_KEY,
     UP_KEY,
@@ -23,7 +24,9 @@ typedef enum {
     MSG_GAME_OVER,
     MSG_GAME_START,
     MSG_LOBBY_INFO,
-    MSG_GET_APPLE
+    MSG_GET_APPLE,
+    MSG_RECONNECT_ACCEPT,
+    MSG_RECONNECT_DENIED
 } MESSAGE_TYPE;
 
 typedef struct {
@@ -55,18 +58,21 @@ typedef struct {
     int players_in_lobby;
     int left_time;
     int id;
+    uint64_t reconnect_token;
 } server_message;
 
 
 typedef struct {
     PLAYER_SIGNALS type;
     player_cord cord;
+    uint64_t reconnect_token;
     char nickname[128];
 } player_message;
 
 typedef struct {
     struct sockaddr_in player_addr;
     int ready;
+    uint64_t reconnect_token;
 } player_info;
 
 typedef struct {
