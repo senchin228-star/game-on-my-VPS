@@ -118,12 +118,8 @@ int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main()
 {
-    if (argc != 2){
-        printf("Need nickname");
-        return 1;
-    }
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         perror("Socket create error\n");
@@ -163,6 +159,8 @@ int main(int argc, char *argv[])
     }
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color yellow = {255, 255, 0, 255};
+    SDL_Color blue = {30, 144, 255, 255};
+    SDL_Color another_blue = {30, 133, 255, 255};
 
 
     if (IMG_Init(IMG_INIT_PNG) == 0){
@@ -200,6 +198,7 @@ int main(int argc, char *argv[])
     SDL_Texture *connect_but_tex = make_texture(renderer, "image/connect_but.png");
 
     SDL_Rect join_button = { .x = 300, .y = 260, .w = 200, .h = 80 };
+    SDL_Rect nick_button = { .x = 550, .y = 150, .w = 200, .h = 40 };
 
     while(running){
         int menu = 1;
@@ -208,23 +207,42 @@ int main(int argc, char *argv[])
         int reconnecting = 0;
         int reconnect_finished = 0;
         uint64_t saved_token = load_reconnect_token();
+        char nickname[12] = {0};
         while(menu){
             while (SDL_PollEvent(&event)){
-                if (event.type == SDL_QUIT){
+                if (event.key.keysym.sym == SDLK_RETURN) {
+                    SDL_StopTextInput();
+                }
+                else if (event.type == SDL_QUIT){
                     if (players_rects != NULL) free(players_rects);
                     running = 0;
                     menu = 0;
                     break;
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN){
-                    if (event.button.button == SDL_BUTTON_LEFT){
+                    if (event.button.button == SDL_BUTTON_LEFT && nickname[0] != '\0'){
                         SDL_Point mouse_pos = {.x = event.button.x, .y = event.button.y};
                         if (SDL_PointInRect(&mouse_pos, &join_button)){
                             int sent = saved_token != 0
                                 ? reconnect_request(sock, &server_addr, saved_token)
-                                : join_request(sock, &server_addr, argv[1]);
+                                : join_request(sock, &server_addr, nickname);
                             if (sent != 0) return 1;
                         }
+                        else if (SDL_PointInRect(&mouse_pos, &nick_button)){
+                            SDL_StartTextInput();
+                        }
+                    }
+                }
+                else if (event.type == SDL_TEXTINPUT) {
+                    if (strlen(nickname) + strlen(event.text.text) < 12) {
+                        strcat(nickname, event.text.text);
+                    }
+                }
+                else if (event.type == SDL_KEYDOWN) {
+                    if (event.key.keysym.sym == SDLK_BACKSPACE && strlen(nickname) > 0) {
+                        int len = strlen(nickname);
+                        while (len > 0 && (nickname[--len] & 0xC0) == 0x80);
+                        nickname[len] = '\0';
                     }
                 }
             }
@@ -247,7 +265,7 @@ int main(int argc, char *argv[])
                        resp.type == MSG_RECONNECT_DENIED) {
                 unlink("client_runtime.conf");
                 saved_token = 0;
-                if (join_request(sock, &server_addr, argv[1]) != 0) return 1;
+                if (join_request(sock, &server_addr, nickname) != 0) return 1;
             }
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
             SDL_RenderClear(renderer);
@@ -258,7 +276,15 @@ int main(int argc, char *argv[])
                 SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255); // Green
                 SDL_RenderFillRect(renderer, &join_button);
             }
+            SDL_SetRenderDrawColor(renderer, 30, 133, 255, 255); // Another_blue
+            SDL_RenderFillRect(renderer, &nick_button);
+
+            render_text_with_bg(renderer, font_medium, "Enter your nickname:", 180, 150, white, blue);
+            if (nickname[0] != '\0'){
+                render_text_with_bg(renderer, font_medium, nickname, 550, 150, white, another_blue);
+            }
             SDL_RenderPresent(renderer);
+
         }
         if (!running) break;
         int id = resp.id;
@@ -273,6 +299,7 @@ int main(int argc, char *argv[])
             game_start_ticks = SDL_GetTicks() - (Uint32)resp.left_time * 1000;
             token = resp.reconnect_token;
         }
+        SDL_StopTextInput();
 
         int countdown_time = -1;
         while (lobby){
