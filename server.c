@@ -13,16 +13,28 @@
 #include <time.h>
 #include <unistd.h>
 
+static void apply_server_settings(server_message *message)
+{
+    message->player_speed = PLAYER_SPEED;
+    message->max_players = MAX_PLAYERS;
+    message->players_to_start = PLAYERS_TO_START;
+    message->round_duration = TIME_FOR_EXIT;
+    message->window_width = WINDOW_WIDTH;
+    message->window_height = WINDOW_HEIGHT;
+    message->player_width = PLAYER_WIDTH;
+    message->player_height = PLAYER_HEIGHT;
+}
 
 static void broadcast_lobby_status(session_info *session, int sock, int left_time)
 {
     server_message message = {
         .type = MSG_LOBBY_INFO,
         .left_time = left_time,
-        .players_in_lobby = session->ready_players,
-        .player_speed = PLAYER_SPEED
+        .players_in_lobby = session->ready_players
     };
-    memcpy(message.players, session->players_client, sizeof(message.players));
+    apply_server_settings(&message);
+    memcpy(message.players, session->players_client,
+           sizeof(session->players_client));
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (session->players[i].ready) {
@@ -37,9 +49,9 @@ static void broadcast_game_start(session_info *session, int sock)
     server_message message = {
         .type = MSG_GAME_START,
         .left_time = 0,
-        .apple_cord = session->apple_cord,
-        .player_speed = PLAYER_SPEED
+        .apple_cord = session->apple_cord
     };
+    apply_server_settings(&message);
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!session->players[i].ready) continue;
@@ -72,6 +84,7 @@ static void answer_reconnect(session_info *active_session,
                              uint64_t token)
 {
     server_message response = {0};
+    apply_server_settings(&response);
     player_info recipient = { .player_addr = *client_addr };
     int id = find_token_player(active_session, token);
 
@@ -81,10 +94,9 @@ static void answer_reconnect(session_info *active_session,
         response.id = id;
         response.left_time = active_session->session_time;
         response.apple_cord = active_session->apple_cord;
-        response.player_speed = PLAYER_SPEED;
         response.reconnect_token = token;
         memcpy(response.players, active_session->players_client,
-               sizeof(response.players));
+             sizeof(active_session->players_client));
     } else {
         // A token from the last finished game gets its final score, not a live reconnect.
         id = find_token_player(finished_session, token);
@@ -92,9 +104,8 @@ static void answer_reconnect(session_info *active_session,
             response.type = MSG_GAME_OVER;
             response.id = id;
             response.left_time = finished_session->session_time;
-            response.player_speed = PLAYER_SPEED;
-            memcpy(response.players, finished_session->players_client,
-                   sizeof(response.players));
+                 memcpy(response.players, finished_session->players_client,
+                     sizeof(finished_session->players_client));
         } else {
             response.type = MSG_RECONNECT_DENIED;
         }
@@ -243,8 +254,8 @@ int player_join(session_info *session, int server_sock,
     server_message response = {
         .type = index >= 0 ? PLAYER_JOIN_ACCEPT : PLAYER_JOIN_DENIED,
         .id = index,
-        .player_speed = PLAYER_SPEED,
     };
+    apply_server_settings(&response);
     if (index >= 0 && !already_joined){
         session->players_client[index].color.R = rand() % 256;
         session->players_client[index].color.G = rand() % 256;
@@ -256,7 +267,8 @@ int player_join(session_info *session, int server_sock,
         snprintf(session->players_client[index].nickname,
                 sizeof(session->players_client[index].nickname),"%s", nick);
     }
-    memcpy(response.players, session->players_client, sizeof(response.players));
+        memcpy(response.players, session->players_client,
+            sizeof(session->players_client));
 
     if (sendto(server_sock, &response, sizeof(response), 0,
                (const struct sockaddr *)client_addr, sizeof(*client_addr)) !=
@@ -406,19 +418,20 @@ int action_handle(session_info *session,
         session->apple_cord.y = -(rand() % (WINDOW_HEIGHT - PLAYER_HEIGHT));
         server_message apple_message = {
             .type = MSG_GET_APPLE,
-            .apple_cord = session->apple_cord,
-            .player_speed = PLAYER_SPEED
+            .apple_cord = session->apple_cord
         };
+        apply_server_settings(&apple_message);
         send_server_message(sock, &session->players[id], &apple_message);
     }
 
     server_message response = {
         .type = MSG_CLIENTS_INFO,
         .left_time = session->session_time,
-        .apple_cord = session->apple_cord,
-        .player_speed = PLAYER_SPEED
+        .apple_cord = session->apple_cord
     };
-    memcpy(response.players, session->players_client, sizeof(response.players));
+    apply_server_settings(&response);
+    memcpy(response.players, session->players_client,
+           sizeof(session->players_client));
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (session->players[i].ready) {
@@ -437,10 +450,11 @@ void session_end(session_info *session, int sock, session_info *finished_session
         if (!session->players[i].ready) continue;
         server_message message = {
             .type = MSG_GAME_OVER,
-            .left_time = session->session_time,
-            .player_speed = PLAYER_SPEED
+            .left_time = session->session_time
         };
-        memcpy(message.players, session->players_client, sizeof(message.players));
+        apply_server_settings(&message);
+         memcpy(message.players, session->players_client,
+             sizeof(session->players_client));
         send_server_message(sock, &session->players[i], &message);
     }
 
@@ -477,6 +491,15 @@ void run_game(session_info *session,
 }
 int main(void)
 {
+    if (MAX_PLAYERS > PROTOCOL_MAX_PLAYERS) {
+        fprintf(stderr, "MAX_PLAYERS cannot exceed %d\n", PROTOCOL_MAX_PLAYERS);
+        return 1;
+    }
+    if (PLAYERS_TO_START > MAX_PLAYERS) {
+        fprintf(stderr, "PLAYERS_TO_START cannot exceed MAX_PLAYERS\n");
+        return 1;
+    }
+
     srand(time(NULL));
     session_info session; 
     memset(&session, 0, sizeof(session));

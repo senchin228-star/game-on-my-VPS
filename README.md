@@ -80,7 +80,11 @@ The main gameplay settings are also defined in `config.h`:
 
 `PLAYER_SPEED` is read by the server and sent to clients when they connect. The client uses the value received from the server.
 
-`config.h` contains machine-specific settings and should not be committed to a public repository. Keep the shared values consistent between the server and every client, then rebuild.
+`config.h` contains local server settings and should not be committed to a public repository. The client no longer needs the server's `MAX_PLAYERS`, `PLAYERS_TO_START`, `PLAYER_SPEED`, or round-duration values to match its own file. The server sends those values to the client after connection.
+
+The network protocol uses a fixed capacity of eight player slots. Keep `MAX_PLAYERS` at or below eight, and keep `PLAYERS_TO_START` at or below `MAX_PLAYERS`. The server exits with an error if these limits are invalid.
+
+This means one client binary can connect to servers with different player limits, countdowns, round durations, movement speeds, and arena settings. Rebuild the server after changing its `config.h`; the client does not need to be rebuilt for server gameplay setting changes.
 
 ## Running a local game
 

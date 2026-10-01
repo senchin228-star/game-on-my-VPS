@@ -237,6 +237,12 @@ int main()
             SDL_Rect ip_button = { .x = 550, .y = 500, .w = 200, .h = 40 };
     char server_ip[INET_ADDRSTRLEN] = "127.0.0.1";
     int server_player_speed = 0;
+    int server_max_players = PROTOCOL_MAX_PLAYERS;
+    int server_round_duration = TIME_FOR_EXIT;
+    int server_window_width = WINDOW_WIDTH;
+    int server_window_height = WINDOW_HEIGHT;
+    int server_player_width = PLAYER_WIDTH;
+    int server_player_height = PLAYER_HEIGHT;
 
     while(running){
         int menu = 1;
@@ -333,9 +339,17 @@ int main()
             memset(&resp, 0, sizeof(resp));
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
             if (has_server_message_header(bytes_received) &&
-                resp.id >= 0 && resp.id < MAX_PLAYERS &&
+                resp.id >= 0 && resp.id < PROTOCOL_MAX_PLAYERS &&
                 (resp.type == PLAYER_JOIN_ACCEPT || resp.type == MSG_LOBBY_INFO)){
                 server_player_speed = resp.player_speed;
+                if (resp.max_players > 0 && resp.max_players <= PROTOCOL_MAX_PLAYERS) {
+                    server_max_players = resp.max_players;
+                }
+                if (resp.round_duration > 0) server_round_duration = resp.round_duration;
+                if (resp.window_width > 0) server_window_width = resp.window_width;
+                if (resp.window_height > 0) server_window_height = resp.window_height;
+                if (resp.player_width > 0) server_player_width = resp.player_width;
+                if (resp.player_height > 0) server_player_height = resp.player_height;
                 menu = 0;
                 lobby = 1;
             } else if (bytes_received == (int)sizeof(resp) &&
@@ -389,7 +403,7 @@ int main()
         }
         if (!running) break;
         int id = resp.id;
-        player_client_info all_players[MAX_PLAYERS];
+        player_client_info all_players[PROTOCOL_MAX_PLAYERS];
         memcpy(all_players, resp.players, sizeof(all_players));
         player_cord my_cord = resp.players[id].cord;
         player_cord apple_cord = {0, 0};
@@ -420,6 +434,9 @@ int main()
 
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_LOBBY_INFO){
                 server_player_speed = resp.player_speed;
+                if (resp.max_players > 0 && resp.max_players <= PROTOCOL_MAX_PLAYERS) {
+                    server_max_players = resp.max_players;
+                }
                 countdown_time = resp.left_time;
                 memset(all_players, 0, sizeof(all_players));
                 memcpy(all_players, resp.players, sizeof(resp.players));
@@ -428,6 +445,9 @@ int main()
             else if(bytes_received == (int)sizeof(resp) && 
                     resp.type == MSG_GAME_START){
                 server_player_speed = resp.player_speed;
+                if (resp.max_players > 0 && resp.max_players <= PROTOCOL_MAX_PLAYERS) {
+                    server_max_players = resp.max_players;
+                }
                 apple_cord = resp.apple_cord;
                 game_start_ticks = SDL_GetTicks();
                 lobby = 0; 
@@ -447,12 +467,13 @@ int main()
                 render_text(renderer, font_medium, time_text, 150, 350, yellow);
             }
             players_rects = player_cords_to_rects(
-                all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
-            render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+                all_players, server_max_players, server_player_width,
+                server_player_height);
+            render_players(players_rects, all_players, server_max_players, renderer);
             render_player_nicknames(
                 players_rects,
                 all_players,
-                MAX_PLAYERS,
+                server_max_players,
                 renderer,
                 font_small,
                 white
@@ -493,11 +514,17 @@ int main()
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
             if (bytes_received == (int)sizeof(resp)){
-                if (resp.player_speed > 0) {
-                    server_player_speed = resp.player_speed;
+                if (resp.player_speed > 0) server_player_speed = resp.player_speed;
+                if (resp.max_players > 0 && resp.max_players <= PROTOCOL_MAX_PLAYERS) {
+                    server_max_players = resp.max_players;
                 }
+                if (resp.round_duration > 0) server_round_duration = resp.round_duration;
+                if (resp.window_width > 0) server_window_width = resp.window_width;
+                if (resp.window_height > 0) server_window_height = resp.window_height;
+                if (resp.player_width > 0) server_player_width = resp.player_width;
+                if (resp.player_height > 0) server_player_height = resp.player_height;
                 if (resp.type == MSG_CLIENTS_INFO) {
-                    for (int i = 0; i < MAX_PLAYERS; i++) {
+                    for (int i = 0; i < server_max_players; i++) {
                         all_players[i] = resp.players[i];
                     }
                     apple_cord = resp.apple_cord;
@@ -517,7 +544,7 @@ int main()
                 }
             }
             int elapsed_time = (int)((SDL_GetTicks() - game_start_ticks) / 1000);
-            int remaining_time = TIME_FOR_EXIT - elapsed_time;
+            int remaining_time = server_round_duration - elapsed_time;
             if (remaining_time < 0) remaining_time = 0;
             player_cord previous_cord = my_cord;
 
@@ -528,18 +555,18 @@ int main()
             if (state[SDL_SCANCODE_DOWN])  my_cord.y -= server_player_speed;
 
             if (my_cord.x < 0) my_cord.x = 0;
-            if (my_cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {
-                my_cord.x = WINDOW_WIDTH - PLAYER_WIDTH;
+            if (my_cord.x > server_window_width - server_player_width) {
+                my_cord.x = server_window_width - server_player_width;
             }
             if (my_cord.y > 0) my_cord.y = 0;
-            if (my_cord.y < -(WINDOW_HEIGHT - PLAYER_HEIGHT)) {
-                my_cord.y = -(WINDOW_HEIGHT - PLAYER_HEIGHT);
+            if (my_cord.y < -(server_window_height - server_player_height)) {
+                my_cord.y = -(server_window_height - server_player_height);
             }
 
-            if (my_cord.x < apple_cord.x + PLAYER_WIDTH &&
-                my_cord.x + PLAYER_WIDTH > apple_cord.x &&
-                my_cord.y < apple_cord.y + PLAYER_HEIGHT &&
-                my_cord.y + PLAYER_HEIGHT > apple_cord.y) {
+            if (my_cord.x < apple_cord.x + server_player_width &&
+                my_cord.x + server_player_width > apple_cord.x &&
+                my_cord.y < apple_cord.y + server_player_height &&
+                my_cord.y + server_player_height > apple_cord.y) {
                 printf("You got the apple!\n");
                 player_message get_point_msg = {
                     .type = GET_POINT,
@@ -551,9 +578,10 @@ int main()
             // Keep local movement visible until the next server snapshot arrives.
             all_players[id].cord = my_cord;
             players_rects = player_cords_to_rects(
-                all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
+                all_players, server_max_players, server_player_width,
+                server_player_height);
             apple_rect = apple_cords_to_rects(
-                &apple_cord, PLAYER_WIDTH, PLAYER_HEIGHT);
+                &apple_cord, server_player_width, server_player_height);
 
             SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255);
             SDL_RenderClear(renderer);
@@ -562,7 +590,7 @@ int main()
                     "Time left: %d", remaining_time);
                 render_text(renderer, font_medium, time_text, 20, 20, yellow);
             render_text(renderer, font_medium, "SCORES", 620, 20, white);
-            for (int i = 0; i < MAX_PLAYERS; i++) {
+            for (int i = 0; i < server_max_players; i++) {
                 if (!all_players[i].ingame || all_players[i].nickname[0] == '\0') {
                     continue;
                 }
@@ -572,11 +600,11 @@ int main()
                     all_players[i].nickname, all_players[i].score);
                 render_text(renderer, font_small, score_text, 570, 55 + i * 30, white);
             }
-            render_players(players_rects, all_players, MAX_PLAYERS, renderer);
+            render_players(players_rects, all_players, server_max_players, renderer);
             render_player_nicknames(
                 players_rects,
                 all_players,
-                MAX_PLAYERS,
+                server_max_players,
                 renderer,
                 font_small,
                 white
@@ -616,7 +644,7 @@ int main()
             int highest_score = -1;
             int winner_id = -1;
             int tied = 0;
-            for (int i = 0; i < MAX_PLAYERS; i++) {
+            for (int i = 0; i < server_max_players; i++) {
                 if (!all_players[i].ingame) continue;
                 if (all_players[i].score > highest_score) {
                     highest_score = all_players[i].score;
@@ -643,7 +671,7 @@ int main()
 
             render_text(renderer, font_medium, "FINAL SCORES", 285, 230, white);
             int score_line = 0;
-            for (int i = 0; i < MAX_PLAYERS; i++) {
+            for (int i = 0; i < server_max_players; i++) {
                 if (!all_players[i].ingame || all_players[i].nickname[0] == '\0') {
                     continue;
                 }

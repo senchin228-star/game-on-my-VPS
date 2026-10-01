@@ -4,8 +4,9 @@
 #include <arpa/inet.h>
 #include "config.h"
 
-/* These structs are sent as raw UDP payloads, so client and server must use
- * the same definitions, enum values, compiler ABI, and build configuration. */
+/* Keep wire payload sizes independent from each server's gameplay config. */
+#define PROTOCOL_MAX_PLAYERS 8
+
 typedef enum {
     PLAYER_JOIN_REQUEST,
     PLAYER_RECONNECT_REQUEST,
@@ -55,12 +56,19 @@ typedef struct {
 
 typedef struct {
     MESSAGE_TYPE type;
-    player_client_info players[MAX_PLAYERS];
+    player_client_info players[PROTOCOL_MAX_PLAYERS];
     player_cord apple_cord;
     int players_in_lobby;
     int left_time;
     int id;
     int player_speed;
+    int max_players;
+    int players_to_start;
+    int round_duration;
+    int window_width;
+    int window_height;
+    int player_width;
+    int player_height;
     uint64_t reconnect_token;
 } server_message;
 
