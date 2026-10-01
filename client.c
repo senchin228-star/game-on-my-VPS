@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -150,6 +151,12 @@ int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
     return 0;
 }
 
+static int has_server_message_header(int bytes_received)
+{
+    return bytes_received >= (int)(offsetof(server_message, id) +
+                                   sizeof(((server_message *)0)->id));
+}
+
 int main()
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -260,6 +267,9 @@ int main()
                             ip_focused = 0;
                             SDL_StartTextInput();
                         } else if (SDL_PointInRect(&mouse_pos, &ip_button)) {
+                            if (!ip_focused) {
+                                server_ip[0] = '\0';
+                            }
                             nickname_focused = 0;
                             ip_focused = 1;
                             SDL_StartTextInput();
@@ -320,9 +330,11 @@ int main()
                     }
                 }
             }
+            memset(&resp, 0, sizeof(resp));
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
-            if (bytes_received == (int)sizeof(resp) &&
-                resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
+            if (has_server_message_header(bytes_received) &&
+                resp.id >= 0 && resp.id < MAX_PLAYERS &&
+                (resp.type == PLAYER_JOIN_ACCEPT || resp.type == MSG_LOBBY_INFO)){
                 server_player_speed = resp.player_speed;
                 menu = 0;
                 lobby = 1;

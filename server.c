@@ -26,6 +26,7 @@ static void broadcast_lobby_status(session_info *session, int sock, int left_tim
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (session->players[i].ready) {
+            message.id = i;
             send_server_message(sock, &session->players[i], &message);
         }
     }
