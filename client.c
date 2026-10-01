@@ -102,6 +102,36 @@ static int reconnect_request(int sock,
     return send_message(sock, server_addr, &request);
 }
 
+static void append_nickname(char *nickname, size_t capacity, const char *input,
+                            size_t input_capacity)
+{
+    size_t nickname_length = strnlen(nickname, capacity);
+    size_t input_length = strnlen(input, input_capacity);
+    if (nickname_length >= capacity - 1) return;
+
+    size_t available = capacity - nickname_length - 1;
+    size_t copy_length = input_length < available ? input_length : available;
+    while (copy_length > 0 &&
+           (((unsigned char)input[copy_length] & 0xC0) == 0x80)) {
+        copy_length--;
+    }
+
+    memcpy(nickname + nickname_length, input, copy_length);
+    nickname[nickname_length + copy_length] = '\0';
+}
+
+static void remove_last_nickname_character(char *nickname)
+{
+    size_t length = strlen(nickname);
+    if (length == 0) return;
+
+    do {
+        length--;
+    } while (length > 0 &&
+             (((unsigned char)nickname[length] & 0xC0) == 0x80));
+    nickname[length] = '\0';
+}
+
 int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
 {
     player_message request = {
@@ -207,42 +237,52 @@ int main()
         int reconnecting = 0;
         int reconnect_finished = 0;
         uint64_t saved_token = load_reconnect_token();
-        char nickname[12] = {0};
+        char nickname[sizeof(((player_message *)0)->nickname)] = {0};
+        int nickname_focused = 1;
+        SDL_StartTextInput();
         while(menu){
             while (SDL_PollEvent(&event)){
-                if (event.key.keysym.sym == SDLK_RETURN) {
-                    SDL_StopTextInput();
-                }
-                else if (event.type == SDL_QUIT){
+                if (event.type == SDL_QUIT){
                     if (players_rects != NULL) free(players_rects);
                     running = 0;
                     menu = 0;
                     break;
                 }
                 else if (event.type == SDL_MOUSEBUTTONDOWN){
-                    if (event.button.button == SDL_BUTTON_LEFT && nickname[0] != '\0'){
+                    if (event.button.button == SDL_BUTTON_LEFT){
                         SDL_Point mouse_pos = {.x = event.button.x, .y = event.button.y};
-                        if (SDL_PointInRect(&mouse_pos, &join_button)){
+                        if (SDL_PointInRect(&mouse_pos, &nick_button)) {
+                            nickname_focused = 1;
+                            SDL_StartTextInput();
+                        } else if (SDL_PointInRect(&mouse_pos, &join_button) &&
+                                   (nickname[0] != '\0' || saved_token != 0)) {
+                            nickname_focused = 0;
+                            SDL_StopTextInput();
                             int sent = saved_token != 0
                                 ? reconnect_request(sock, &server_addr, saved_token)
                                 : join_request(sock, &server_addr, nickname);
                             if (sent != 0) return 1;
-                        }
-                        else if (SDL_PointInRect(&mouse_pos, &nick_button)){
-                            SDL_StartTextInput();
+                        } else {
+                            nickname_focused = 0;
+                            SDL_StopTextInput();
                         }
                     }
                 }
-                else if (event.type == SDL_TEXTINPUT) {
-                    if (strlen(nickname) + strlen(event.text.text) < 12) {
-                        strcat(nickname, event.text.text);
-                    }
+                else if (event.type == SDL_TEXTINPUT && nickname_focused) {
+                    append_nickname(nickname, sizeof(nickname), event.text.text,
+                                    sizeof(event.text.text));
                 }
-                else if (event.type == SDL_KEYDOWN) {
-                    if (event.key.keysym.sym == SDLK_BACKSPACE && strlen(nickname) > 0) {
-                        int len = strlen(nickname);
-                        while (len > 0 && (nickname[--len] & 0xC0) == 0x80);
-                        nickname[len] = '\0';
+                else if (event.type == SDL_KEYDOWN && nickname_focused) {
+                    if (event.key.keysym.sym == SDLK_BACKSPACE) {
+                        remove_last_nickname_character(nickname);
+                    } else if (event.key.keysym.sym == SDLK_RETURN &&
+                               (nickname[0] != '\0' || saved_token != 0)) {
+                        nickname_focused = 0;
+                        SDL_StopTextInput();
+                        int sent = saved_token != 0
+                            ? reconnect_request(sock, &server_addr, saved_token)
+                            : join_request(sock, &server_addr, nickname);
+                        if (sent != 0) return 1;
                     }
                 }
             }
