@@ -57,14 +57,14 @@ make clean
 
 ## Configuration
 
-Before building, edit `config.h` on both the server and client machines:
+Before building, edit `config.h` on both the server and client machines if you need to change the shared port or gameplay settings:
 
 ```c
-#define SERVER_IP "203.0.113.10"
 #define SERVER_PORT 12345
+#define PLAYER_SPEED 3
 ```
 
-Use the server's public IP address for `SERVER_IP` when clients connect over the internet. The server listens on `SERVER_PORT` on all interfaces.
+The server listens on `SERVER_PORT` on all interfaces. The client asks for the server IPv4 address in the menu, so the IP does not need to be compiled into `config.h`.
 
 The main gameplay settings are also defined in `config.h`:
 
@@ -78,11 +78,13 @@ The main gameplay settings are also defined in `config.h`:
 | `WINDOW_WIDTH` | `800` | Client window width |
 | `WINDOW_HEIGHT` | `600` | Client window height |
 
+`PLAYER_SPEED` is read by the server and sent to clients when they connect. The client uses the value received from the server.
+
 `config.h` contains machine-specific settings and should not be committed to a public repository. Keep the shared values consistent between the server and every client, then rebuild.
 
 ## Running a local game
 
-For a local two-player test, keep `SERVER_IP` set to `127.0.0.1`. Open separate terminals in the project directory.
+For a local two-player test, enter `127.0.0.1` in the client's **Server IP** field. Open separate terminals in the project directory.
 
 Start the server:
 
@@ -108,7 +110,7 @@ Enter a nickname in each client and select **Join**. A round starts when both pl
 	```
 
 3. Copy the client build and assets to each player's Linux machine.
-4. Set `SERVER_IP` in each client's `config.h` to the VPS public IP.
+4. Enter the VPS public IP in the **Server IP** field in the client menu.
 5. Rebuild the client with `make client` and run `./client`.
 
 The server process must remain running while clients are playing. A process manager such as `systemd` or `tmux` can be used to keep it alive after disconnecting from the VPS.

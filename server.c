@@ -19,7 +19,8 @@ static void broadcast_lobby_status(session_info *session, int sock, int left_tim
     server_message message = {
         .type = MSG_LOBBY_INFO,
         .left_time = left_time,
-        .players_in_lobby = session->ready_players
+        .players_in_lobby = session->ready_players,
+        .player_speed = PLAYER_SPEED
     };
     memcpy(message.players, session->players_client, sizeof(message.players));
 
@@ -35,7 +36,8 @@ static void broadcast_game_start(session_info *session, int sock)
     server_message message = {
         .type = MSG_GAME_START,
         .left_time = 0,
-        .apple_cord = session->apple_cord
+        .apple_cord = session->apple_cord,
+        .player_speed = PLAYER_SPEED
     };
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -78,6 +80,7 @@ static void answer_reconnect(session_info *active_session,
         response.id = id;
         response.left_time = active_session->session_time;
         response.apple_cord = active_session->apple_cord;
+        response.player_speed = PLAYER_SPEED;
         response.reconnect_token = token;
         memcpy(response.players, active_session->players_client,
                sizeof(response.players));
@@ -88,6 +91,7 @@ static void answer_reconnect(session_info *active_session,
             response.type = MSG_GAME_OVER;
             response.id = id;
             response.left_time = finished_session->session_time;
+            response.player_speed = PLAYER_SPEED;
             memcpy(response.players, finished_session->players_client,
                    sizeof(response.players));
         } else {
@@ -223,17 +227,24 @@ int player_join(session_info *session, int server_sock,
 
     int index = -1;
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (!session->players[i].ready) {
+        if (session->players[i].ready &&
+            same_player(&session->players[i].player_addr, client_addr)) {
             index = i;
             break;
         }
+        if (index < 0 && !session->players[i].ready) {
+            index = i;
+        }
     }
+
+    int already_joined = index >= 0 && session->players[index].ready;
 
     server_message response = {
         .type = index >= 0 ? PLAYER_JOIN_ACCEPT : PLAYER_JOIN_DENIED,
         .id = index,
+        .player_speed = PLAYER_SPEED,
     };
-    if (index >= 0){
+    if (index >= 0 && !already_joined){
         session->players_client[index].color.R = rand() % 256;
         session->players_client[index].color.G = rand() % 256;
         session->players_client[index].color.B = rand() % 256;
@@ -256,6 +267,10 @@ int player_join(session_info *session, int server_sock,
     if (index < 0) {
         printf("Max players\n");
         return 1;
+    }
+
+    if (already_joined) {
+        return 0;
     }
 
     session->players[index].ready = 1;
@@ -390,7 +405,8 @@ int action_handle(session_info *session,
         session->apple_cord.y = -(rand() % (WINDOW_HEIGHT - PLAYER_HEIGHT));
         server_message apple_message = {
             .type = MSG_GET_APPLE,
-            .apple_cord = session->apple_cord
+            .apple_cord = session->apple_cord,
+            .player_speed = PLAYER_SPEED
         };
         send_server_message(sock, &session->players[id], &apple_message);
     }
@@ -398,7 +414,8 @@ int action_handle(session_info *session,
     server_message response = {
         .type = MSG_CLIENTS_INFO,
         .left_time = session->session_time,
-        .apple_cord = session->apple_cord
+        .apple_cord = session->apple_cord,
+        .player_speed = PLAYER_SPEED
     };
     memcpy(response.players, session->players_client, sizeof(response.players));
 
@@ -419,7 +436,8 @@ void session_end(session_info *session, int sock, session_info *finished_session
         if (!session->players[i].ready) continue;
         server_message message = {
             .type = MSG_GAME_OVER,
-            .left_time = session->session_time
+            .left_time = session->session_time,
+            .player_speed = PLAYER_SPEED
         };
         memcpy(message.players, session->players_client, sizeof(message.players));
         send_server_message(sock, &session->players[i], &message);

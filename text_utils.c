@@ -33,7 +33,7 @@ void render_text(SDL_Renderer *renderer,
     }
 
     SDL_Surface *surface =
-        TTF_RenderText_Blended(font, text, color);
+        TTF_RenderUTF8_Blended(font, text, color);
 
     if (surface == NULL) {
         fprintf(stderr,
@@ -84,7 +84,7 @@ void render_text_with_bg(SDL_Renderer *renderer,
         return;
     }
 
-    SDL_Surface *surface = TTF_RenderText_Shaded(font, text, text_color, bg_color);
+    SDL_Surface *surface = TTF_RenderUTF8_Shaded(font, text, text_color, bg_color);
     if (surface == NULL) {
         fprintf(stderr, "Error rendering text: %s\n", TTF_GetError());
         return;

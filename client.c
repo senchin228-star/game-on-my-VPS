@@ -160,12 +160,9 @@ int main()
     fcntl(sock, F_SETFL, O_NONBLOCK);
     
     struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(SERVER_PORT);
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0){
-        perror("Wrong IP addres\n");
-        return 1;
-    }
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
         printf("Init SDL error: %s\n", SDL_GetError());
@@ -230,6 +227,9 @@ int main()
 
     SDL_Rect join_button = { .x = 300, .y = 260, .w = 200, .h = 80 };
     SDL_Rect nick_button = { .x = 550, .y = 150, .w = 200, .h = 40 };
+            SDL_Rect ip_button = { .x = 550, .y = 500, .w = 200, .h = 40 };
+    char server_ip[INET_ADDRSTRLEN] = "127.0.0.1";
+    int server_player_speed = 0;
 
     while(running){
         int menu = 1;
@@ -241,6 +241,8 @@ int main()
         // Keep the input buffer aligned with the nickname field on the wire.
         char nickname[sizeof(((player_message *)0)->nickname)] = {0};
         int nickname_focused = 1;
+        int ip_focused = 0;
+        int join_pending = 0;
         SDL_StartTextInput();
         while(menu){
             while (SDL_PollEvent(&event)){
@@ -255,17 +257,31 @@ int main()
                         SDL_Point mouse_pos = {.x = event.button.x, .y = event.button.y};
                         if (SDL_PointInRect(&mouse_pos, &nick_button)) {
                             nickname_focused = 1;
+                            ip_focused = 0;
                             SDL_StartTextInput();
-                        } else if (SDL_PointInRect(&mouse_pos, &join_button) &&
-                                   (nickname[0] != '\0' || saved_token != 0)) {
+                        } else if (SDL_PointInRect(&mouse_pos, &ip_button)) {
                             nickname_focused = 0;
+                            ip_focused = 1;
+                            SDL_StartTextInput();
+                        } else if (!join_pending &&
+                                   SDL_PointInRect(&mouse_pos, &join_button) &&
+                                   (nickname[0] != '\0' || saved_token != 0)) {
+                            if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+                                ip_focused = 1;
+                                SDL_StartTextInput();
+                                continue;
+                            }
+                            nickname_focused = 0;
+                            ip_focused = 0;
                             SDL_StopTextInput();
                             int sent = saved_token != 0
                                 ? reconnect_request(sock, &server_addr, saved_token)
                                 : join_request(sock, &server_addr, nickname);
                             if (sent != 0) return 1;
+                            join_pending = 1;
                         } else {
                             nickname_focused = 0;
+                            ip_focused = 0;
                             SDL_StopTextInput();
                         }
                     }
@@ -274,27 +290,48 @@ int main()
                     append_nickname(nickname, sizeof(nickname), event.text.text,
                                     sizeof(event.text.text));
                 }
-                else if (event.type == SDL_KEYDOWN && nickname_focused) {
+                else if (event.type == SDL_TEXTINPUT && ip_focused) {
+                    append_nickname(server_ip, sizeof(server_ip), event.text.text,
+                                    sizeof(event.text.text));
+                }
+                else if (event.type == SDL_KEYDOWN && (nickname_focused || ip_focused)) {
                     if (event.key.keysym.sym == SDLK_BACKSPACE) {
-                        remove_last_nickname_character(nickname);
-                    } else if (event.key.keysym.sym == SDLK_RETURN &&
+                        if (nickname_focused) {
+                            remove_last_nickname_character(nickname);
+                        } else {
+                            remove_last_nickname_character(server_ip);
+                        }
+                    } else if (nickname_focused && !join_pending &&
+                               event.key.keysym.sym == SDLK_RETURN &&
                                (nickname[0] != '\0' || saved_token != 0)) {
+                        if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+                            ip_focused = 1;
+                            nickname_focused = 0;
+                            continue;
+                        }
                         nickname_focused = 0;
+                        ip_focused = 0;
                         SDL_StopTextInput();
                         int sent = saved_token != 0
                             ? reconnect_request(sock, &server_addr, saved_token)
                             : join_request(sock, &server_addr, nickname);
                         if (sent != 0) return 1;
+                        join_pending = 1;
                     }
                 }
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
             if (bytes_received == (int)sizeof(resp) &&
                 resp.id != -1 && resp.type == PLAYER_JOIN_ACCEPT){
+                server_player_speed = resp.player_speed;
                 menu = 0;
                 lobby = 1;
             } else if (bytes_received == (int)sizeof(resp) &&
+                       resp.type == PLAYER_JOIN_DENIED) {
+                join_pending = 0;
+            } else if (bytes_received == (int)sizeof(resp) &&
                        resp.type == MSG_RECONNECT_ACCEPT) {
+                server_player_speed = resp.player_speed;
                 reconnecting = 1;
                 menu = 0;
                 ingame = 1;
@@ -325,6 +362,16 @@ int main()
             if (nickname[0] != '\0'){
                 render_text_with_bg(renderer, font_medium, nickname, 550, 150, white, another_blue);
             }
+            SDL_SetRenderDrawColor(renderer,
+                                   ip_focused ? another_blue.r : blue.r,
+                                   ip_focused ? another_blue.g : blue.g,
+                                   ip_focused ? another_blue.b : blue.b,
+                                   255);
+            SDL_RenderFillRect(renderer, &ip_button);
+            render_text_with_bg(renderer, font_small, "Server IP:", 370, 500, white, blue);
+            render_text_with_bg(renderer, font_small,
+                                server_ip[0] != '\0' ? server_ip : "Enter IP",
+                                560, 500, white, ip_focused ? another_blue : blue);
             SDL_RenderPresent(renderer);
 
         }
@@ -360,6 +407,7 @@ int main()
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
 
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_LOBBY_INFO){
+                server_player_speed = resp.player_speed;
                 countdown_time = resp.left_time;
                 memset(all_players, 0, sizeof(all_players));
                 memcpy(all_players, resp.players, sizeof(resp.players));
@@ -367,6 +415,7 @@ int main()
 
             else if(bytes_received == (int)sizeof(resp) && 
                     resp.type == MSG_GAME_START){
+                server_player_speed = resp.player_speed;
                 apple_cord = resp.apple_cord;
                 game_start_ticks = SDL_GetTicks();
                 lobby = 0; 
@@ -432,6 +481,9 @@ int main()
             }
             int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
             if (bytes_received == (int)sizeof(resp)){
+                if (resp.player_speed > 0) {
+                    server_player_speed = resp.player_speed;
+                }
                 if (resp.type == MSG_CLIENTS_INFO) {
                     for (int i = 0; i < MAX_PLAYERS; i++) {
                         all_players[i] = resp.players[i];
@@ -458,10 +510,10 @@ int main()
             player_cord previous_cord = my_cord;
 
             const Uint8 *state = SDL_GetKeyboardState(NULL);
-            if (state[SDL_SCANCODE_LEFT])  my_cord.x -= PLAYER_SPEED;
-            if (state[SDL_SCANCODE_RIGHT]) my_cord.x += PLAYER_SPEED;
-            if (state[SDL_SCANCODE_UP])    my_cord.y += PLAYER_SPEED;
-            if (state[SDL_SCANCODE_DOWN])  my_cord.y -= PLAYER_SPEED;
+            if (state[SDL_SCANCODE_LEFT])  my_cord.x -= server_player_speed;
+            if (state[SDL_SCANCODE_RIGHT]) my_cord.x += server_player_speed;
+            if (state[SDL_SCANCODE_UP])    my_cord.y += server_player_speed;
+            if (state[SDL_SCANCODE_DOWN])  my_cord.y -= server_player_speed;
 
             if (my_cord.x < 0) my_cord.x = 0;
             if (my_cord.x > WINDOW_WIDTH - PLAYER_WIDTH) {

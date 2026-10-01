@@ -60,6 +60,7 @@ typedef struct {
     int players_in_lobby;
     int left_time;
     int id;
+    int player_speed;
     uint64_t reconnect_token;
 } server_message;
 

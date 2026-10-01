@@ -1,4 +1,3 @@
-#define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 12345
 #define MAX_PLAYERS 2
 #define PLAYERS_TO_START 2
