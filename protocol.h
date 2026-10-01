@@ -4,6 +4,8 @@
 #include <arpa/inet.h>
 #include "config.h"
 
+/* These structs are sent as raw UDP payloads, so client and server must use
+ * the same definitions, enum values, compiler ABI, and build configuration. */
 typedef enum {
     PLAYER_JOIN_REQUEST,
     PLAYER_RECONNECT_REQUEST,

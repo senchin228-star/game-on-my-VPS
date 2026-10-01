@@ -111,6 +111,7 @@ static void append_nickname(char *nickname, size_t capacity, const char *input,
 
     size_t available = capacity - nickname_length - 1;
     size_t copy_length = input_length < available ? input_length : available;
+    // Back up if truncation would leave only part of a UTF-8 character.
     while (copy_length > 0 &&
            (((unsigned char)input[copy_length] & 0xC0) == 0x80)) {
         copy_length--;
@@ -125,6 +126,7 @@ static void remove_last_nickname_character(char *nickname)
     size_t length = strlen(nickname);
     if (length == 0) return;
 
+    // Walk back over UTF-8 continuation bytes to remove the whole character.
     do {
         length--;
     } while (length > 0 &&
@@ -176,7 +178,6 @@ int main()
         return 1;
     }
 
-    // Load font
     TTF_Font *font_large = load_font("fonts/DejaVuSans-Bold.ttf", 48);
     TTF_Font *font_medium = load_font("fonts/DejaVuSans.ttf", 32);
     TTF_Font *font_small = load_font("fonts/DejaVuSans.ttf", 24);
@@ -237,6 +238,7 @@ int main()
         int reconnecting = 0;
         int reconnect_finished = 0;
         uint64_t saved_token = load_reconnect_token();
+        // Keep the input buffer aligned with the nickname field on the wire.
         char nickname[sizeof(((player_message *)0)->nickname)] = {0};
         int nickname_focused = 1;
         SDL_StartTextInput();
@@ -307,16 +309,16 @@ int main()
                 saved_token = 0;
                 if (join_request(sock, &server_addr, nickname) != 0) return 1;
             }
-            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
+            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255);
             SDL_RenderClear(renderer);
             if (connect_but_tex != NULL){
                 SDL_RenderCopy(renderer, connect_but_tex, NULL, &join_button);
             }
-            else{ // if texture not exist
-                SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255); // Green
+            else{
+                SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255);
                 SDL_RenderFillRect(renderer, &join_button);
             }
-            SDL_SetRenderDrawColor(renderer, 30, 133, 255, 255); // Another_blue
+            SDL_SetRenderDrawColor(renderer, 30, 133, 255, 255);
             SDL_RenderFillRect(renderer, &nick_button);
 
             render_text_with_bg(renderer, font_medium, "Enter your nickname:", 180, 150, white, blue);
@@ -374,8 +376,7 @@ int main()
                     perror("Failed to save reconnect token");
                 }
             }
-            // RENDER
-            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
+            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255);
             SDL_RenderClear(renderer);
             render_text(renderer, font_large, "WAITING FOR PLAYERS", 100, 50, white);
             char time_text[256] = {0};
@@ -447,8 +448,6 @@ int main()
                 }
                 else if (resp.type == MSG_GET_APPLE){
                     printf("New apple cord: (%d, %d)\n", resp.apple_cord.x, resp.apple_cord.y);
-                    // Update the apple position in the game state
-                    // You may want to store the apple position in a global variable or a struct
                     apple_cord.x = resp.apple_cord.x;
                     apple_cord.y = resp.apple_cord.y;
                 }
@@ -478,7 +477,6 @@ int main()
                 my_cord.y < apple_cord.y + PLAYER_HEIGHT &&
                 my_cord.y + PLAYER_HEIGHT > apple_cord.y) {
                 printf("You got the apple!\n");
-                // Handle the event of getting the apple, e.g., increase score
                 player_message get_point_msg = {
                     .type = GET_POINT,
                     .cord = my_cord
@@ -486,13 +484,14 @@ int main()
                 send_message(sock, &server_addr, &get_point_msg);
             }
 
+            // Keep local movement visible until the next server snapshot arrives.
             all_players[id].cord = my_cord;
             players_rects = player_cords_to_rects(
                 all_players, MAX_PLAYERS, PLAYER_WIDTH, PLAYER_HEIGHT);
             apple_rect = apple_cords_to_rects(
                 &apple_cord, PLAYER_WIDTH, PLAYER_HEIGHT);
 
-            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255); // blue
+            SDL_SetRenderDrawColor(renderer, 30, 144, 255, 255);
             SDL_RenderClear(renderer);
                 char time_text[64];
                 snprintf(time_text, sizeof(time_text),

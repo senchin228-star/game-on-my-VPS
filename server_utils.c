@@ -11,6 +11,7 @@ int create_token(uint64_t *token)
 {
     size_t received = 0;
 
+    // getrandom may return a short read or be interrupted by a signal.
     while (received < sizeof(*token)) {
         ssize_t count = getrandom(
             (char *)token + received,

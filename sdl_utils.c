@@ -16,6 +16,7 @@ SDL_Rect *apple_cords_to_rects(const player_cord *apple_cords,
     }
 
     apple_rect->x = apple_cords[0].x;
+    // Game coordinates encode screen-down as negative y; SDL uses positive y.
     apple_rect->y = apple_cords[0].y * -1;
     apple_rect->w = width;
     apple_rect->h = height;

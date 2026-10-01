@@ -44,6 +44,7 @@ static void broadcast_game_start(session_info *session, int sock)
             perror("Failed to create reconnect token");
             continue;
         }
+        // Each player receives the token stored in their own session slot.
         message.reconnect_token = session->players[i].reconnect_token;
         send_server_message(sock, &session->players[i], &message);
     }
@@ -81,6 +82,7 @@ static void answer_reconnect(session_info *active_session,
         memcpy(response.players, active_session->players_client,
                sizeof(response.players));
     } else {
+        // A token from the last finished game gets its final score, not a live reconnect.
         id = find_token_player(finished_session, token);
         if (id >= 0) {
             response.type = MSG_GAME_OVER;
@@ -100,6 +102,7 @@ static int countdown(session_info *session,
                      const session_info *finished_session,
                      int server_sock)
 {
+    // Use a monotonic clock so wall-clock adjustments cannot change the countdown.
     double start_time = monotonic_seconds();
     int previous_left_time = -1;
 
@@ -113,7 +116,7 @@ static int countdown(session_info *session,
             left_time = 0;
         }
 
-        //send when time changed
+        // Broadcast once per displayed second while the loop also services UDP traffic.
         if (left_time != previous_left_time) {
             broadcast_lobby_status(session, server_sock, left_time);
             previous_left_time = left_time;
@@ -125,7 +128,7 @@ static int countdown(session_info *session,
             return 0;
         }
 
-        // wait udp-packet max 100ms
+        // Short select intervals keep player requests responsive during the countdown.
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(server_sock, &readfds);
@@ -152,7 +155,6 @@ static int countdown(session_info *session,
             return 1;
         }
 
-        // HANDLE PLAYER SIGNAL
         if (result > 0 && FD_ISSET(server_sock, &readfds)) {
             player_message message;
             struct sockaddr_in client_addr;
@@ -182,10 +184,6 @@ static int countdown(session_info *session,
                                  &client_addr, message.reconnect_token);
                 continue;
             }
-           /* HANDLE PLAYER SIGNALS
-            *
-            * ID Determination
-            */
             int id = -1;
             for (int i = 0; i < MAX_PLAYERS; i++) {
                 if (session->players[i].ready &&
@@ -194,7 +192,8 @@ static int countdown(session_info *session,
                     continue;
                 }
             }
-            if (id < 0) continue; /* Ignore packets from unknown clients. */
+            // During the lobby, accept control messages only from registered endpoints.
+            if (id < 0) continue;
 
             
             if (bytes_received == (ssize_t)sizeof(message) &&
@@ -203,9 +202,9 @@ static int countdown(session_info *session,
                     session->ready_players--;
                     memset(&session->players[id], 0, sizeof(session->players[id]));
                     memset(&session->players_client[id], 0, sizeof(session->players_client[id]));
-                    left_time = 0; //Wait players
+                    left_time = 0;
                     broadcast_lobby_status(session, server_sock, left_time);
-                    return 1; // Player leave
+                    return 1;
                 }
             continue;
             }
@@ -359,7 +358,8 @@ int action_handle(session_info *session,
             break;
         }
     }
-    if (id < 0) return 1; /* Ignore packets from unknown clients. */
+    // UDP source address and port identify the player; nicknames are not identities.
+    if (id < 0) return 1;
 
     if (message.type == SEND_CORD) {
         session->players_client[id].cord = message.cord;
@@ -377,6 +377,7 @@ int action_handle(session_info *session,
         }
     }
 
+    // Validate the overlap on the server instead of trusting the client's point request.
     if (message.type == GET_POINT && session->players_client[id].cord.x < session->apple_cord.x + PLAYER_WIDTH &&
             session->players_client[id].cord.x + PLAYER_WIDTH > session->apple_cord.x &&
             session->players_client[id].cord.y < session->apple_cord.y + PLAYER_HEIGHT &&
@@ -457,7 +458,7 @@ void run_game(session_info *session,
 }
 int main(void)
 {
-    srand(time(NULL)); // for random color
+    srand(time(NULL));
     session_info session; 
     memset(&session, 0, sizeof(session));
     session.session_number = 1;
@@ -487,7 +488,7 @@ int main(void)
         wait_players(&session, &finished_session, server_sock);
         printf("GAME START\n");
 
-        time_t start_time = time(NULL); //for random color
+        time_t start_time = time(NULL);
         run_game(&session, &finished_session, server_sock, start_time);
 
         printf("game ended\n");
