@@ -4,3 +4,5 @@ client
 supp.log
 .gitignore
 client_runtime.conf
+bin_win
+*.dll

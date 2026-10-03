@@ -1,8 +1,14 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <arpa/inet.h>
 #include "config.h"
+#include <stdint.h>
+
+#ifdef _WIN32
+    #include <winsock2.h>
+#else
+    #include <arpa/inet.h>
+#endif
 
 /* Keep wire payload sizes independent from each server's gameplay config. */
 #define PROTOCOL_MAX_PLAYERS 8

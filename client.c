@@ -2,76 +2,112 @@
 #include "protocol.h"
 #include "sdl_utils.h"
 #include "text_utils.h"
+#ifdef _WIN32
+    #include <windows.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <io.h>
+#else
+    #include <stdio.h>
+    #include <inttypes.h>
+    #include <stddef.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <unistd.h>
+    #include <arpa/inet.h>
+    #include <termios.h>
+    #include <ctype.h>
+    #include <SDL2/SDL.h>
+    #include <SDL2/SDL_image.h>
+    #include <SDL2/SDL_ttf.h>
+#endif
 
-#include <stdio.h>
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <termios.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
+#ifdef _WIN32
+    typedef SOCKET socket_t;
+#else
+    typedef int socket_t;
+#endif
 
-int leave(int sock, struct sockaddr_in *server_addr)
+int leave(socket_t sock, struct sockaddr_in *server_addr)
 {
     player_message mes = {
         .type = PLAYER_LEAVE,
     };
-    int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
-            (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent != (int)sizeof(mes)){
-        perror("Failed to send the mes\n");
-        return 1;
-    }
+    #ifdef _WIN32
+        int bytes_sent = sendto(sock, (const char*)&mes, sizeof(mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #else
+        int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #endif
+    #ifdef _WIN32
+        if(bytes_sent == SOCKET_ERROR){
+            printf("Failed to send mes: %d\n", WSAGetLastError());
+            return 1;
+        }
+    #else
+        if (bytes_sent != (int)sizeof(mes)){
+            perror("Failed to send the mes\n");
+            return 1;
+        }
+    #endif
     return 0;
 }
 
-int send_message(int sock, struct sockaddr_in *server_addr, player_message *mes)
+int send_message(socket_t sock, struct sockaddr_in *server_addr, player_message *mes)
 {
-    int bytes_sent = sendto(sock, mes, sizeof(*mes), 0,
-            (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent != (int)sizeof(*mes)){
-        perror("Failed to send the mes\n");
-        return 1;
-    }
+    #ifdef _WIN32
+        int bytes_sent = sendto(sock, (const char*)mes, sizeof(*mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #else
+        int bytes_sent = sendto(sock, mes, sizeof(*mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #endif
+    #ifdef _WIN32
+        if(bytes_sent == SOCKET_ERROR){
+            printf("Failed to send mes: %d\n", WSAGetLastError());
+            return 1;
+        }
+    #else
+        if (bytes_sent != (int)sizeof(*mes)){
+            perror("Failed to send the mes\n");
+            return 1;
+        }
+    #endif
     return 0;
 }
 
-int send_move(int sock, struct sockaddr_in *server_addr, player_cord cord)
+int send_move(socket_t sock, struct sockaddr_in *server_addr, player_cord cord)
 {
     player_message mes = {
         .type = SEND_CORD,
         .cord = cord
     };
-    int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
-            (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent != (int)sizeof(mes)){
-        perror("Failed to send the mes\n");
-        return 1;
-    }
+    #ifdef _WIN32
+        int bytes_sent = sendto(sock, (const char*)&mes, sizeof(mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #else
+        int bytes_sent = sendto(sock, &mes, sizeof(mes), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #endif
+    #ifdef _WIN32
+        if(bytes_sent == SOCKET_ERROR){
+            printf("Failed to send mes: %d\n", WSAGetLastError());
+            return 1;
+        }
+    #else
+        if (bytes_sent != (int)sizeof(mes)){
+            perror("Failed to send the mes\n");
+            return 1;
+        }
+    #endif
     return 0;
 }
 
 static int save_reconnect_token(uint64_t token)
 {
-    int fd = open("client_runtime.conf", O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (fd < 0) return 1;
-    if (fchmod(fd, 0600) < 0) {
-        close(fd);
-        return 1;
-    }
-
-    FILE *config = fdopen(fd, "w");
-    if (config == NULL) {
-        close(fd);
-        return 1;
-    }
+    FILE *config = fopen("client_runtime_conf", "w");
+    if (config == NULL) return 1;
 
     int write_failed = fprintf(config, "reconnect_token=%" PRIu64 "\n", token) < 0;
     if (fflush(config) != 0) write_failed = 1;
@@ -92,7 +128,7 @@ static uint64_t load_reconnect_token(void)
     return token;
 }
 
-static int reconnect_request(int sock,
+static int reconnect_request(size_t sock,
                              struct sockaddr_in *server_addr,
                              uint64_t token)
 {
@@ -135,19 +171,33 @@ static void remove_last_nickname_character(char *nickname)
     nickname[length] = '\0';
 }
 
-int join_request(int sock, struct sockaddr_in *server_addr,char* nick)
+int join_request(socket_t sock, struct sockaddr_in *server_addr,char* nick)
 {
     player_message request = {
         .type = PLAYER_JOIN_REQUEST,
     };
     strncpy(request.nickname, nick, sizeof(request.nickname) - 1);
     request.nickname[sizeof(request.nickname) - 1] = '\0';
-    int bytes_sent = sendto(sock, &request, sizeof(request), 0,
-            (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (bytes_sent != (int)sizeof(request)){
-        perror("Failed to send the request\n");
-        return 1;
-    }
+
+    #ifdef _WIN32
+        int bytes_sent = sendto(sock, (const char*)&request, sizeof(request), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #else
+        int bytes_sent = sendto(sock, &request, sizeof(request), 0,
+                (struct sockaddr *)server_addr, (int)sizeof(*server_addr));
+    #endif
+
+    #ifdef _WIN32
+        if(bytes_sent == SOCKET_ERROR){
+            printf("Failed to send mes: %d\n", WSAGetLastError());
+            return 1;
+        }
+    #else
+        if (bytes_sent != (int)sizeof(request)){
+            perror("Failed to send the mes\n");
+            return 1;
+        }
+    #endif
     return 0;
 }
 
@@ -157,14 +207,53 @@ static int has_server_message_header(int bytes_received)
                                    sizeof(((server_message *)0)->id));
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        perror("Socket create error\n");
+    #ifdef _WIN32
+        WSADATA wsaData;
+        SOCKET sock;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+            printf("Winsock error\n");
+            return 1;
+        }
+    #else
+        int sock;
+    #endif
+
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    #ifdef _WIN32
+        struct sockaddr_in local_addr;
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = INADDR_ANY; // Слушаем на всех интерфейсах
+    local_addr.sin_port = htons(0);         // 0 означает, что ОС сама выделит любой случайный свободный порт
+
+    if (bind(sock, (struct sockaddr *)&local_addr, sizeof(local_addr)) == SOCKET_ERROR) {
+        printf("Ошибка bind сокета: %d\n", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
         return 1;
     }
-    fcntl(sock, F_SETFL, O_NONBLOCK);
+    #else
+        if (sock < 0) {
+            perror("Socket create error\n");
+            return 1;
+        }
+    #endif
+    #ifdef _WIN32
+        unsigned long mode = 1;
+        if (ioctlsocket(sock, FIONBIO, &mode) != 0) {
+            printf("Failed to set non-blocking mode: %d\n", WSAGetLastError());
+            closesocket(sock);
+            WSACleanup();
+            return 1;
+        }
+    #else
+        if (fcntl(sock, F_SETFL, O_NONBLOCK) < 0) {
+            perror("Failed to set non-blocking mode");
+            return 1;
+        }
+    #endif
     
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -337,7 +426,31 @@ int main()
                 }
             }
             memset(&resp, 0, sizeof(resp));
-            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            #ifdef _WIN32
+                struct sockaddr_in from_addr;
+                int from_len = sizeof(from_addr);
+                int bytes_received = recvfrom(sock, (char *)&resp, sizeof(resp), 0, (struct sockaddr *)&from_addr, &from_len);
+            #else
+                int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            #endif
+            #ifdef _WIN32
+                if (bytes_received == SOCKET_ERROR) {
+                    int error = WSAGetLastError();
+                    if (error == WSAEWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        printf("recvfrom error: %d\n", error);
+                    }
+                }
+            #else
+                if (bytes_received < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        perror("recvfrom error");
+                    }
+                }
+            #endif
             if (has_server_message_header(bytes_received) &&
                 resp.id >= 0 && resp.id < PROTOCOL_MAX_PLAYERS &&
                 (resp.type == PLAYER_JOIN_ACCEPT || resp.type == MSG_LOBBY_INFO)){
@@ -430,7 +543,32 @@ int main()
                     }
                 }
             }
-            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            memset(&resp, 0, sizeof(resp));
+            #ifdef _WIN32
+                struct sockaddr_in from_addr;
+                int from_len = sizeof(from_addr);
+                int bytes_received = recvfrom(sock, (char *)&resp, sizeof(resp), 0, (struct sockaddr *)&from_addr, &from_len);
+            #else
+                int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            #endif
+            #ifdef _WIN32
+                if (bytes_received == SOCKET_ERROR) {
+                    int error = WSAGetLastError();
+                    if (error == WSAEWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        printf("recvfrom error: %d\n", error);
+                    }
+                }
+            #else
+                if (bytes_received < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        perror("recvfrom error");
+                    }
+                }
+            #endif
 
             if(bytes_received == (int)sizeof(resp) && resp.type == MSG_LOBBY_INFO){
                 server_player_speed = resp.player_speed;
@@ -512,7 +650,32 @@ int main()
                     break;
                 }
             }
-            int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            memset(&resp, 0, sizeof(resp));
+            #ifdef _WIN32
+                struct sockaddr_in from_addr;
+                int from_len = sizeof(from_addr);
+                int bytes_received = recvfrom(sock, (char *)&resp, sizeof(resp), 0, (struct sockaddr *)&from_addr, &from_len);
+            #else
+                int bytes_received = recvfrom(sock, &resp, sizeof(resp), 0, NULL, NULL);
+            #endif
+            #ifdef _WIN32
+                if (bytes_received == SOCKET_ERROR) {
+                    int error = WSAGetLastError();
+                    if (error == WSAEWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        printf("recvfrom error: %d\n", error);
+                    }
+                }
+            #else
+                if (bytes_received < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        bytes_received = 0;
+                    } else {
+                        perror("recvfrom error");
+                    }
+                }
+            #endif
             if (bytes_received == (int)sizeof(resp)){
                 if (resp.player_speed > 0) server_player_speed = resp.player_speed;
                 if (resp.max_players > 0 && resp.max_players <= PROTOCOL_MAX_PLAYERS) {
@@ -694,6 +857,12 @@ int main()
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    close(sock);
+    #ifdef _WIN32
+        closesocket(sock);
+        WSACleanup();
+    #else
+        close(sock);
+    #endif
+
     return 0;
 }
