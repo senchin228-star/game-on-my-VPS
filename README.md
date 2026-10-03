@@ -15,7 +15,7 @@ A small two-player network game written in C. The dedicated server runs on a Lin
 
 ## Requirements
 
-This release targets **Linux only**. You need:
+The dedicated server runs on Linux. Client builds are available for Linux and Windows. To build natively on Linux, you need:
 
 - GCC or another C compiler compatible with the Makefile
 - GNU Make
@@ -117,6 +117,8 @@ Enter a nickname in each client and select **Join**. A round starts when both pl
 4. Enter the VPS public IP in the **Server IP** field in the client menu.
 5. Rebuild the client with `make client` and run `./client`.
 
+Windows players can extract the Windows release archive and run `client.exe`. Keep the included `fonts/`, `image/`, and DLL files alongside the executable. The game server must still run on Linux.
+
 The server process must remain running while clients are playing. A process manager such as `systemd` or `tmux` can be used to keep it alive after disconnecting from the VPS.
 
 ## Controls
@@ -148,4 +150,4 @@ The client and server exchange game messages over UDP. They must be built from c
 
 ## Platform status
 
-The current release supports Linux only. Windows and macOS builds are not provided or tested.
+The Linux release includes the client and dedicated server. The Windows x86-64 release includes the client and its SDL runtime DLLs; the dedicated server is Linux-only. macOS builds are not provided.

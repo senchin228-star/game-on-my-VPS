@@ -16,6 +16,8 @@
     #include <unistd.h>
     #include <arpa/inet.h>
     #include <termios.h>
+    #include <fcntl.h>
+    #include <errno.h>
     #include <ctype.h>
     #include <SDL2/SDL.h>
     #include <SDL2/SDL_image.h>
@@ -225,8 +227,8 @@ int main(int argc, char *argv[])
         struct sockaddr_in local_addr;
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family = AF_INET;
-    local_addr.sin_addr.s_addr = INADDR_ANY; // Слушаем на всех интерфейсах
-    local_addr.sin_port = htons(0);         // 0 означает, что ОС сама выделит любой случайный свободный порт
+    local_addr.sin_addr.s_addr = INADDR_ANY;
+    local_addr.sin_port = htons(0);
 
     if (bind(sock, (struct sockaddr *)&local_addr, sizeof(local_addr)) == SOCKET_ERROR) {
         printf("Ошибка bind сокета: %d\n", WSAGetLastError());
